@@ -1,0 +1,96 @@
+{
+  "job_id": "video-director-draft",
+  "inputs": {
+    "topic_hint": "local short video draft",
+    "narration_text": "先用本地素材建立主题和场景。中段按照信息推进选择过程、人物或环境细节。结尾使用结果画面或情绪画面收束，方便在剪映里继续精修。",
+    "director_brief": "Prepare a real Jianying draft handoff from local materials when the environment supports it.",
+    "avatar_image_path": "input/avatar/avatar_reference.mp4"
+  },
+  "production": {
+    "full_tts_audio_path": "input/audio/full_narration.wav",
+    "full_tts_duration_ms": 12000,
+    "understanding": {
+      "narrative_groups": [
+        {
+          "title": "opening context",
+          "ocr_keywords": ["开场", "环境", "主题"]
+        },
+        {
+          "title": "process detail",
+          "ocr_keywords": ["过程", "细节", "行动"]
+        },
+        {
+          "title": "result close",
+          "ocr_keywords": ["结果", "收束", "总结"]
+        }
+      ]
+    },
+    "materials": [
+      {
+        "asset_id": "mat-01",
+        "path": "input/materials/opening.mp4",
+        "tags": ["开场", "环境", "主题"]
+      },
+      {
+        "asset_id": "mat-02",
+        "path": "input/materials/process.mp4",
+        "tags": ["过程", "细节", "行动"]
+      },
+      {
+        "asset_id": "mat-03",
+        "path": "input/materials/result.mp4",
+        "tags": ["结果", "收束", "总结"]
+      }
+    ],
+    "avatar_clips": [
+      {
+        "segment_id": "seg-1",
+        "video_path": "input/avatar/avatar_opening.mp4",
+        "audio_path": "input/avatar/avatar_opening.wav"
+      }
+    ]
+  },
+  "editing": {
+    "resolution": "1080x1920",
+    "fps": 30,
+    "color_space": "rec709",
+    "min_segment_ms": 2500,
+    "chars_per_second": 8.0,
+    "avatar_opening_segments": 1,
+    "avatar_middle_segments": 0,
+    "avatar_ending_segments": 0,
+    "avatar_min_segments_for_middle": 5,
+    "max_material_reuse": 2
+  },
+  "outputs": {
+    "output_root": "output/video_director",
+    "run_management": {
+      "enabled": true,
+      "runs_dirname": "runs",
+      "latest_pointer_name": "latest_run.json"
+    },
+    "targets": ["jianying_draft"],
+    "preview_enabled": false,
+    "final_render_enabled": false,
+    "jianying": {
+      "use_pyjianyingdraft": true,
+      "drafts_root": "output/video_director_jianying_drafts",
+      "materialize_local_assets": true,
+      "download_remote_assets": true,
+      "draft_name": "video-director-draft",
+      "subtitles": {
+        "enabled": true,
+        "font_size": 6.0,
+        "font_color": "#FFFFFF",
+        "bold": true,
+        "align": 1,
+        "auto_wrapping": true,
+        "max_line_width": 0.84,
+        "transform_y": -0.78,
+        "border_enabled": true,
+        "border_color": "#000000",
+        "border_width": 42.0
+      }
+    }
+  }
+}

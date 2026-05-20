@@ -1,0 +1,15 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.DS_Store
+output/
+output/video_director*/
+output/video_director_jianying_drafts/
+video-director.*.local.json
+*.local.json
+demo/contest/assets_manifest.json
+demo/contest/narration.txt
+demo/contest/video-director.contest-demo.local.json
+demo/contest/materials/
+demo/contest/output/

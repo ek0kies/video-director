@@ -1,0 +1,184 @@
+{
+  "job_id": "video-director-cloud",
+  "inputs": {
+    "topic_hint": "cloud-assisted short video",
+    "narration_text": "先用本地素材建立主题和场景。需要云端生成时，只把明确配置的旁白、音频或数字人任务交给远端服务。最终仍回到本地时间线，输出可复用的短视频结果。",
+    "director_brief": "Use cloud generation only when explicitly configured, then return to the local Video Director timeline.",
+    "materials_dir": "input/materials",
+    "avatar_path": "input/avatar/avatar_reference.mp4"
+  },
+  "production": {
+    "mode": "cloud",
+    "enable_tts_generation": true,
+    "enable_avatar_generation": true,
+    "poll_interval_seconds": 2,
+    "max_poll_attempts": 120,
+    "estimated_chars_per_second": 8.0,
+    "retry_policy": {
+      "max_attempts": 3,
+      "initial_backoff_seconds": 0.75,
+      "max_backoff_seconds": 6.0,
+      "backoff_multiplier": 2.0,
+      "jitter_seconds": 0.15,
+      "retryable_http_statuses": [408, 425, 429, 500, 502, 503, 504]
+    },
+    "checkpointing": {
+      "enabled": true,
+      "resume_enabled": true,
+      "manifest_name": "Remote_Run_Manifest.json"
+    },
+    "api": {
+      "base_url": "https://api.your-platform.example.com",
+      "timeout_seconds": 30,
+      "auth": {
+        "type": "bearer",
+        "token": "replace-with-your-token"
+      }
+    },
+    "runtime": {
+      "request_id": "replace-with-unique-request-id",
+      "avatar_image_url": "asset://your-avatar-image-asset-id",
+      "voice_clone_audio_url": "asset://your-voice-sample-asset-id"
+    },
+    "voice_clone": {
+      "enabled": false,
+      "payload_template": {
+        "name": "user-voice-001",
+        "audio_url": "{{voice_clone_audio_url}}"
+      },
+      "trigger": {
+        "method": "POST",
+        "path": "/v1/pipeline/voice-clone/train",
+        "task_id_path": "data.task_id"
+      },
+      "status": {
+        "method": "GET",
+        "path": "/v1/tasks/{task_id}",
+        "status_path": "data.status",
+        "success_statuses": ["succeeded"],
+        "failure_statuses": ["failed", "error"],
+        "error_code_path": "error.code",
+        "error_message_path": "error.message",
+        "speaker_id_path": "data.speaker_id"
+      }
+    },
+    "tts": {
+      "provider": "doubao_tts2_v3_http_chunked",
+      "endpoint": "https://openspeech.bytedance.com/api/v3/tts/unidirectional",
+      "api_key": "replace-with-your-api-key",
+      "resource_id": "seed-tts-2.0",
+      "output_file_name": "tts.wav",
+      "speaker_id": "",
+      "payload_template": {
+        "request_id": "{{request_id}}",
+        "req_params": {
+          "speaker": "{{speaker_id}}",
+          "text": "{{script_text}}",
+          "audio_params": {
+            "format": "wav"
+          }
+        }
+      }
+    },
+    "audio_delivery": {
+      "enabled": false,
+      "provider": "tos",
+      "endpoint": "tos-cn-beijing.volces.com",
+      "region": "cn-beijing",
+      "access_key": "replace-with-access-key",
+      "secret_key": "replace-with-secret-key",
+      "security_token": "",
+      "bucket": "replace-with-bucket-name",
+      "public_base_url": "",
+      "download_endpoint": "",
+      "is_custom_domain": false,
+      "expires_seconds": 3600,
+      "cleanup_after_avatar_success": true,
+      "cleanup_after_avatar_failure": false,
+      "object_prefix": "video-director-audio",
+      "content_type": "audio/wav"
+    },
+    "avatar": {
+      "payload_template": {
+        "model": "doubao-seedance-2-0-260128",
+        "content": [
+          {
+            "type": "text",
+            "text": "{{script_text}}"
+          },
+          {
+            "type": "image_url",
+            "image_url": {
+              "url": "{{avatar_image_url}}"
+            },
+            "role": "reference_image"
+          },
+          {
+            "type": "audio_url",
+            "audio_url": {
+              "url": "{{audio_url}}"
+            },
+            "role": "reference_audio"
+          }
+        ],
+        "generate_audio": false,
+        "ratio": "16:9",
+        "duration": "{{avatar_duration_seconds}}",
+        "watermark": false
+      },
+      "trigger": {
+        "method": "POST",
+        "path": "/contents/generations/tasks",
+        "task_id_path": "id"
+      },
+      "status": {
+        "method": "GET",
+        "path": "/contents/generations/tasks/{task_id}",
+        "status_path": "status",
+        "success_statuses": ["succeeded"],
+        "failure_statuses": ["failed", "error"],
+        "error_code_path": "error.code",
+        "error_message_path": "error.message",
+        "result_url_path": "content.video_url"
+      }
+    }
+  },
+  "editing": {
+    "resolution": "1080x1920",
+    "fps": 30,
+    "color_space": "rec709",
+    "min_segment_ms": 2500,
+    "chars_per_second": 8.0,
+    "avatar_opening_segments": 1,
+    "avatar_middle_segments": 1,
+    "avatar_ending_segments": 1,
+    "avatar_min_segments_for_middle": 5,
+    "max_material_reuse": 2
+  },
+  "outputs": {
+    "output_root": "output/video_director",
+    "run_management": {
+      "enabled": true,
+      "runs_dirname": "runs",
+      "latest_pointer_name": "latest_run.json"
+    },
+    "targets": ["final_render"],
+    "preview_enabled": false,
+    "final_render_enabled": false,
+    "final_render": {
+      "output_name": "video-director-cloud.mp4",
+      "burn_subtitles": true,
+      "emit_sidecar_srt": false
+    },
+    "jianying": {
+      "use_pyjianyingdraft": false,
+      "drafts_root": "output/video_director_jianying_drafts",
+      "materialize_local_assets": true,
+      "download_remote_assets": true,
+      "prefer_avatar_embedded_audio": false,
+      "subtitles": {
+        "enabled": true
+      }
+    }
+  }
+}

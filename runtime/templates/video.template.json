@@ -1,0 +1,80 @@
+{
+  "job_id": "video-director-video",
+  "inputs": {
+    "topic_hint": "local short video",
+    "narration_text": "先用最能代表主题的素材建立开场。随后切到过程、环境和关键细节，让观众快速理解发生了什么。最后用结果画面或情绪画面收束，形成一条完整的短视频。",
+    "director_brief": "Use local B-roll as the primary visual track and render a directly playable vertical mp4."
+  },
+  "production": {
+    "full_tts_audio_path": "",
+    "full_tts_duration_ms": 12000,
+    "understanding": {
+      "narrative_groups": [
+        {
+          "title": "opening context",
+          "ocr_keywords": ["开场", "环境", "主题"]
+        },
+        {
+          "title": "process detail",
+          "ocr_keywords": ["过程", "细节", "行动"]
+        },
+        {
+          "title": "result close",
+          "ocr_keywords": ["结果", "收束", "总结"]
+        }
+      ]
+    },
+    "materials": [
+      {
+        "asset_id": "mat-01",
+        "path": "input/materials/opening.mp4",
+        "tags": ["开场", "环境", "主题"]
+      },
+      {
+        "asset_id": "mat-02",
+        "path": "input/materials/process.mp4",
+        "tags": ["过程", "细节", "行动"]
+      },
+      {
+        "asset_id": "mat-03",
+        "path": "input/materials/result.mp4",
+        "tags": ["结果", "收束", "总结"]
+      }
+    ]
+  },
+  "editing": {
+    "resolution": "1080x1920",
+    "fps": 30,
+    "color_space": "rec709",
+    "min_segment_ms": 2500,
+    "chars_per_second": 8.0,
+    "enable_avatar_timeline": false,
+    "avatar_opening_segments": 0,
+    "avatar_middle_segments": 0,
+    "avatar_ending_segments": 0,
+    "avatar_min_segments_for_middle": 5,
+    "max_material_reuse": 2
+  },
+  "outputs": {
+    "output_root": "output/video_director",
+    "run_management": {
+      "enabled": true,
+      "runs_dirname": "runs",
+      "latest_pointer_name": "latest_run.json"
+    },
+    "targets": ["final_render"],
+    "preview_enabled": false,
+    "final_render_enabled": false,
+    "final_render": {
+      "output_name": "video-director-final.mp4",
+      "burn_subtitles": true,
+      "emit_sidecar_srt": false
+    },
+    "jianying": {
+      "use_pyjianyingdraft": false,
+      "subtitles": {
+        "enabled": true
+      }
+    }
+  }
+}

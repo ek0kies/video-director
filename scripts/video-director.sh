@@ -10,7 +10,7 @@ video_director_python_is_compatible() {
   "${candidate}" - >/dev/null 2>&1 <<'PY'
 import sys
 
-raise SystemExit(0 if sys.version_info >= (3, 11) else 1)
+raise SystemExit(0 if sys.version_info >= (3, 10) else 1)
 PY
 }
 
@@ -23,7 +23,7 @@ video_director_resolve_python() {
       return 0
     fi
     {
-      echo "error: VIDEO_DIRECTOR_PYTHON is set but is not Python 3.11+: ${VIDEO_DIRECTOR_PYTHON}"
+      echo "error: VIDEO_DIRECTOR_PYTHON is set but is not Python 3.10+: ${VIDEO_DIRECTOR_PYTHON}"
       echo "Unset VIDEO_DIRECTOR_PYTHON or point it to a compatible interpreter."
     } >&2
     return 1
@@ -35,12 +35,23 @@ video_director_resolve_python() {
     "python3.13"
     "python3.12"
     "python3.11"
+    "python3.10"
     "/opt/homebrew/opt/python@3.13/libexec/bin/python"
     "/opt/homebrew/opt/python@3.12/libexec/bin/python"
     "/opt/homebrew/opt/python@3.11/libexec/bin/python"
+    "/opt/homebrew/opt/python@3.10/libexec/bin/python"
+    "/usr/local/opt/python@3.13/libexec/bin/python"
+    "/usr/local/opt/python@3.12/libexec/bin/python"
+    "/usr/local/opt/python@3.11/libexec/bin/python"
+    "/usr/local/opt/python@3.10/libexec/bin/python"
     "/opt/homebrew/bin/python3.13"
     "/opt/homebrew/bin/python3.12"
     "/opt/homebrew/bin/python3.11"
+    "/opt/homebrew/bin/python3.10"
+    "/usr/local/bin/python3.13"
+    "/usr/local/bin/python3.12"
+    "/usr/local/bin/python3.11"
+    "/usr/local/bin/python3.10"
   )
 
   local candidate
@@ -52,7 +63,7 @@ video_director_resolve_python() {
   done
 
   {
-    echo "error: Python 3.11 or newer is required for Video Director."
+    echo "error: Python 3.10 or newer is required for Video Director."
     echo "Checked 'python3', 'python', and versioned Python commands."
     echo "If 'python3' or 'python' is compatible in your shell, set VIDEO_DIRECTOR_PYTHON to that command and retry."
     echo "Do not install Miniforge, Conda, Anaconda, pyenv, or another Python distribution automatically."

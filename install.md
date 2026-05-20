@@ -17,7 +17,7 @@ that can discover a `SKILL.md` file.
 Five things must be true:
 
 1. The `video-director` repo is cloned somewhere stable.
-2. The launcher can find Python 3.11+ automatically, or `VIDEO_DIRECTOR_PYTHON`
+2. The launcher can find Python 3.10+ automatically, or `VIDEO_DIRECTOR_PYTHON`
    points to one.
 3. Required Python packages are available to the interpreter selected by the
    launcher.
@@ -66,7 +66,7 @@ Required dependencies:
 
 | Dependency | Purpose |
 | --- | --- |
-| Python 3.11+ | Runs the bundled Video Director runtime |
+| Python 3.10+ | Runs the bundled Video Director runtime |
 | Pillow | Subtitle and render support, declared in `pyproject.toml` |
 | ffmpeg | Required for final mp4 rendering |
 | ffprobe | Used for media/audio probing when available |
@@ -94,10 +94,10 @@ python3 -c "import sys; print(sys.executable); print(sys.version)"
 python -c "import sys; print(sys.executable); print(sys.version)"
 ```
 
-If either reports Python 3.11 or newer, use that command:
+If either reports Python 3.10 or newer, use that command:
 
 ```bash
-export VIDEO_DIRECTOR_PYTHON=python3  # or python, whichever is Python 3.11+
+export VIDEO_DIRECTOR_PYTHON=python3  # or python, whichever is Python 3.10+
 bash scripts/video-director.sh --help
 ```
 
@@ -111,7 +111,7 @@ scripts\video-director.cmd --help
 ```
 
 If neither command is compatible, stop and ask the user how they want Python
-3.11+ installed. Prefer a lightweight OS/package-manager Python over a full
+3.10+ installed. Prefer a lightweight OS/package-manager Python over a full
 Python distribution. Do not download installer bundles on your own.
 
 ## 3. Install Python packages when needed
@@ -123,7 +123,7 @@ Run doctor after ffmpeg is available. If doctor reports that Pillow is missing,
 install dependencies into the interpreter selected by the launcher.
 
 ```bash
-VIDEO_DIRECTOR_PYTHON=/path/to/python3.11-or-newer
+VIDEO_DIRECTOR_PYTHON=/path/to/python3.10-or-newer
 "$VIDEO_DIRECTOR_PYTHON" -m pip install -e .
 ```
 

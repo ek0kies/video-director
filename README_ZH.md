@@ -17,10 +17,10 @@
 ```text
 Set up https://github.com/ek0kies/video-director for me.
 Read install.md first and handle the environment yourself. The required runtime
-dependencies are Python 3.11+, Pillow from the root pyproject.toml, and
+dependencies are Python 3.10+, Pillow from the root pyproject.toml, and
 ffmpeg/ffprobe.
 Clone the repo to a stable local path, use the launcher to detect an existing
-Python 3.11+ before installing anything, install only missing dependencies into
+Python 3.10+ before installing anything, install only missing dependencies into
 that interpreter, register the whole repo as a skill for the current agent, then
 run the built-in demo smoke test. Do not install Miniforge, Conda, Anaconda,
 pyenv, or another Python distribution automatically; ask me first if no

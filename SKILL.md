@@ -44,7 +44,7 @@ Windows:
 scripts\video-director.cmd --help
 ```
 
-Both launchers auto-detect Python 3.11+ and check `python3`, `python`, then
+Both launchers auto-detect Python 3.10+ and check `python3`, `python`, then
 versioned commands. If auto-detection fails, test both `python3` and `python`
 explicitly before proposing an installation. When either is compatible, set
 `VIDEO_DIRECTOR_PYTHON` to that command and continue.

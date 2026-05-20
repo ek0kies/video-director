@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 
-REQUIRED_PYTHON = (3, 11)
+REQUIRED_PYTHON = (3, 10)
 
 
 def _check_python() -> Dict[str, Any]:
@@ -26,7 +26,7 @@ def _check_python() -> Dict[str, Any]:
         "status": "ok" if ok else "error",
         "expected": f"{REQUIRED_PYTHON[0]}.{REQUIRED_PYTHON[1]}",
         "actual": f"{current['major']}.{current['minor']}.{current['micro']}",
-        "note": "Video Director runtime expects Python 3.11 or newer.",
+        "note": "Video Director runtime expects Python 3.10 or newer.",
     }
 
 

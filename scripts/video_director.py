@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Any, Iterable, List, Optional, Sequence, Tuple
 
 
-REQUIRED_PYTHON = (3, 11)
+REQUIRED_PYTHON = (3, 10)
 MODES = {"bundle_only", "local", "cloud"}
 
 

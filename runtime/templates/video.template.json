@@ -2,7 +2,7 @@
   "job_id": "video-director-video",
   "inputs": {
     "topic_hint": "local short video",
-    "narration_text": "先用最能代表主题的素材建立开场。随后切到过程、环境和关键细节，让观众快速理解发生了什么。最后用结果画面或情绪画面收束，形成一条完整的短视频。",
+    "narration_text": "Open with the strongest local material, then move through process, context, and key details so viewers quickly understand the story. Close with a result shot or emotional moment.",
     "director_brief": "Use local B-roll as the primary visual track and render a directly playable vertical mp4."
   },
   "production": {
@@ -12,15 +12,15 @@
       "narrative_groups": [
         {
           "title": "opening context",
-          "ocr_keywords": ["开场", "环境", "主题"]
+          "ocr_keywords": ["opening", "context", "theme"]
         },
         {
           "title": "process detail",
-          "ocr_keywords": ["过程", "细节", "行动"]
+          "ocr_keywords": ["process", "detail", "action"]
         },
         {
           "title": "result close",
-          "ocr_keywords": ["结果", "收束", "总结"]
+          "ocr_keywords": ["result", "ending", "summary"]
         }
       ]
     },
@@ -28,17 +28,17 @@
       {
         "asset_id": "mat-01",
         "path": "input/materials/opening.mp4",
-        "tags": ["开场", "环境", "主题"]
+        "tags": ["opening", "context", "theme"]
       },
       {
         "asset_id": "mat-02",
         "path": "input/materials/process.mp4",
-        "tags": ["过程", "细节", "行动"]
+        "tags": ["process", "detail", "action"]
       },
       {
         "asset_id": "mat-03",
         "path": "input/materials/result.mp4",
-        "tags": ["结果", "收束", "总结"]
+        "tags": ["result", "ending", "summary"]
       }
     ]
   },
@@ -69,12 +69,6 @@
       "output_name": "video-director-final.mp4",
       "burn_subtitles": true,
       "emit_sidecar_srt": false
-    },
-    "jianying": {
-      "use_pyjianyingdraft": false,
-      "subtitles": {
-        "enabled": true
-      }
     }
   }
 }

@@ -189,7 +189,7 @@ class VideoDirectorWorkflow:
 
     @staticmethod
     def _normalize_targets(outputs: Dict[str, Any]) -> List[str]:
-        raw_targets = outputs.get("targets", ["jianying_draft"])
+        raw_targets = outputs.get("targets", ["final_render"])
         targets = [str(item).strip() for item in raw_targets if str(item).strip()]
         if outputs.get("preview_enabled", False):
             targets.append("preview_render")

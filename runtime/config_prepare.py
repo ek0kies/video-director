@@ -6,25 +6,24 @@ from __future__ import annotations
 import argparse
 import json
 import platform
-import sys
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
 
 TEMPLATE_BY_MODE = {
     "bundle_only": "runtime/templates/video.template.json",
-    "local_jianying": "runtime/templates/jianying-draft.template.json",
+    "local": "runtime/templates/video.template.json",
     "cloud": "runtime/templates/cloud.template.json",
 }
+DRAFT_TEMPLATE = "runtime/templates/draft.template.json"
 
 OUTPUT_MODE_DRAFT = "draft"
 OUTPUT_MODE_VIDEO = "video"
 SUPPORTED_OUTPUT_MODES = (OUTPUT_MODE_DRAFT, OUTPUT_MODE_VIDEO)
-MACOS_JIANYING_DRAFT_MESSAGE = (
-    "Jianying draft export through pyJianYingDraft is not supported on macOS in this package. "
-    "pyJianYingDraft currently produces drafts that are unreliable for the Mac Jianying project format. "
-    "Use --output-mode video for the judge-safe mp4 path, or run draft export on Windows. "
-    "Set --allow-mac-jianying-draft only for local experimental debugging."
+UNSUPPORTED_DRAFT_ADAPTER_MESSAGE = (
+    "The current editable-draft adapter is not supported on macOS in this package. "
+    "Use --output-mode video for the judge-safe mp4 path, or run draft export in a supported environment. "
+    "Set --allow-unsupported-draft-adapter only for local experimental debugging."
 )
 
 
@@ -119,14 +118,13 @@ def _apply_output_mode(payload: Dict[str, Any], *, runtime_mode: str, output_mod
         outputs["final_render_enabled"] = False
         return
 
-    if runtime_mode == "bundle_only":
-        jianying.setdefault("use_pyjianyingdraft", False)
+    jianying.setdefault("use_pyjianyingdraft", False)
     outputs["targets"] = ["jianying_draft"]
     outputs["preview_enabled"] = False
     outputs["final_render_enabled"] = False
 
 
-def _validate_platform_support(payload: Dict[str, Any], *, output_mode: str, allow_mac_jianying_draft: bool) -> None:
+def _validate_platform_support(payload: Dict[str, Any], *, output_mode: str, allow_unsupported_draft_adapter: bool) -> None:
     outputs = payload.get("outputs", {})
     jianying = outputs.get("jianying", {}) if isinstance(outputs, dict) else {}
     uses_real_jianying = bool(jianying.get("use_pyjianyingdraft", False))
@@ -134,19 +132,19 @@ def _validate_platform_support(payload: Dict[str, Any], *, output_mode: str, all
         output_mode == OUTPUT_MODE_DRAFT
         and uses_real_jianying
         and platform.system() == "Darwin"
-        and not allow_mac_jianying_draft
+        and not allow_unsupported_draft_adapter
     ):
-        raise RuntimeError(MACOS_JIANYING_DRAFT_MESSAGE)
+        raise RuntimeError(UNSUPPORTED_DRAFT_ADAPTER_MESSAGE)
 
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Prepare a local Video Director config")
-    parser.add_argument("--mode", choices=sorted(TEMPLATE_BY_MODE.keys()), default="local_jianying")
+    parser.add_argument("--mode", choices=sorted(TEMPLATE_BY_MODE.keys()), default="local")
     parser.add_argument(
         "--output-mode",
         choices=SUPPORTED_OUTPUT_MODES,
         default=OUTPUT_MODE_VIDEO,
-        help="user-facing output type: Jianying draft or final video",
+        help="user-facing output type: editable draft or final video",
     )
     parser.add_argument("--template", help="override the default template path")
     parser.add_argument("--output", required=True, help="path to the generated config json")
@@ -165,14 +163,14 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--drafts-root", help="override outputs.jianying.drafts_root")
     parser.add_argument("--output-root", help="override outputs.output_root")
     parser.add_argument(
-        "--use-pyjianyingdraft",
+        "--enable-draft-adapter",
         choices=("true", "false"),
-        help="override outputs.jianying.use_pyjianyingdraft",
+        help="enable or disable the current editable-draft adapter",
     )
     parser.add_argument(
-        "--allow-mac-jianying-draft",
+        "--allow-unsupported-draft-adapter",
         action="store_true",
-        help="allow experimental pyJianYingDraft config generation on macOS",
+        help="allow experimental draft config generation in unsupported environments",
     )
     parser.add_argument(
         "--target",
@@ -192,7 +190,8 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
 
 def prepare_config(args: argparse.Namespace, *, skill_root: Optional[Path] = None) -> Dict[str, str]:
     root = skill_root or skill_root_from_runtime()
-    template_path = Path(args.template).expanduser() if args.template else root / TEMPLATE_BY_MODE[args.mode]
+    default_template = DRAFT_TEMPLATE if args.output_mode == OUTPUT_MODE_DRAFT and args.mode == "local" else TEMPLATE_BY_MODE[args.mode]
+    template_path = Path(args.template).expanduser() if args.template else root / default_template
     if not template_path.is_file():
         raise FileNotFoundError(f"template does not exist: {template_path}")
 
@@ -228,8 +227,8 @@ def prepare_config(args: argparse.Namespace, *, skill_root: Optional[Path] = Non
         jianying["drafts_root"] = args.drafts_root
     if args.output_root:
         outputs["output_root"] = args.output_root
-    if args.use_pyjianyingdraft is not None:
-        jianying["use_pyjianyingdraft"] = args.use_pyjianyingdraft == "true"
+    if args.enable_draft_adapter is not None:
+        jianying["use_pyjianyingdraft"] = args.enable_draft_adapter == "true"
     if args.target:
         outputs["targets"] = _normalize_targets(args.target)
 
@@ -242,7 +241,7 @@ def prepare_config(args: argparse.Namespace, *, skill_root: Optional[Path] = Non
     _validate_platform_support(
         payload,
         output_mode=args.output_mode,
-        allow_mac_jianying_draft=args.allow_mac_jianying_draft,
+        allow_unsupported_draft_adapter=args.allow_unsupported_draft_adapter,
     )
 
     output_path = Path(args.output).expanduser()

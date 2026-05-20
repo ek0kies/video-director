@@ -13,7 +13,7 @@ from typing import Any, Iterable, List, Optional, Sequence, Tuple
 
 
 REQUIRED_PYTHON = (3, 11)
-MODES = {"bundle_only", "local_jianying", "cloud"}
+MODES = {"bundle_only", "local", "cloud"}
 
 
 def _script_root() -> Path:
@@ -96,7 +96,7 @@ def _default_config_output(mode: str, output_mode: str, workspace_root: Path) ->
     elif mode == "cloud":
         name = "video-director.cloud.video.local.json" if output_mode == "video" else "video-director.cloud.local.json"
     else:
-        name = "video-director.video.local.json" if output_mode == "video" else "video-director.jianying.local.json"
+        name = "video-director.video.local.json" if output_mode == "video" else "video-director.draft.local.json"
     return workspace_root / name
 
 
@@ -137,7 +137,7 @@ def _cmd_analyze(args: Sequence[str]) -> int:
 
 
 def _cmd_config(args: Sequence[str]) -> int:
-    mode = "local_jianying"
+    mode = "local"
     remaining = list(args)
     if remaining and remaining[0] in MODES:
         mode = remaining.pop(0)
@@ -261,7 +261,7 @@ def _cmd_demo(args: Sequence[str]) -> int:
     build_assets_manifest(materials_dir=materials_dir, cwd=_skill_root(), output_path=manifest_path)
     config_args = [
         "--mode",
-        "local_jianying",
+        "local",
         "--output-mode",
         "video",
         "--output",

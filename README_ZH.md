@@ -69,3 +69,7 @@ and render a direct mp4 after I approve the plan.
 ```
 
 Unix/macOS 使用 `scripts/video-director.sh`，Windows 使用 `scripts\video-director.cmd`。配置模板是 skill 内部实现细节；正常使用时，Agent 会根据你的请求生成本地配置，只在所选路径缺少必要信息时再询问。
+
+## License
+
+MIT

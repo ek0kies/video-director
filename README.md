@@ -74,3 +74,7 @@ The public command surface is `scripts/video-director.sh` on Unix/macOS and
 Config templates are internal to the skill. In normal use, the agent generates
 the local config from your request and only asks for missing information when a
 selected path requires it.
+
+## License
+
+MIT

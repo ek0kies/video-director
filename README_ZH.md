@@ -4,7 +4,7 @@
 
 [English](README.md)
 
-把图片或视频素材放到一个目录里，让 Agent 使用这个 skill，即可得到基于时间线的 `final.mp4` 类输出。默认路径是本地优先：
+把图片或视频素材放到一个目录里，让 Agent 使用这个 skill，即可得到基于时间线的 `final.mp4` 类输出。默认路径是：
 
 ```text
 素材清单 -> 旁白优先时间线 -> ffmpeg 渲染

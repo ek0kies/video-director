@@ -5,7 +5,7 @@ Turn local media into a directly playable short mp4 with a coding agent.
 [简体中文](README_ZH.md)
 
 Drop source media in a folder, ask an agent to use this skill, and get a
-timeline-backed `final.mp4` style output. The default path is local-first:
+timeline-backed `final.mp4` style output. The default path is:
 manifest -> narration-first timeline -> ffmpeg render.
 
 ## Setup prompt

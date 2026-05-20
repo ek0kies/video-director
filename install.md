@@ -10,7 +10,7 @@ Use this file only for first-time install or reconnect. For daily editing, read
 
 ## What you're doing
 
-You are setting up a local-first video generation skill for any coding agent with
+You are setting up a video generation skill for any coding agent with
 shell access: Claude Code, Codex, Hermes, Openclaw, TRAE SOLO, or another agent
 that can discover a `SKILL.md` file.
 

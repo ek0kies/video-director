@@ -12,7 +12,7 @@ video through this default flow:
 local media -> assets manifest -> narration-first timeline -> final mp4
 ```
 
-The default path is local-first and does not require cloud services, TTS,
+The default path uses the bundled runtime and does not require cloud services, TTS,
 avatar generation, or editable-draft adapters.
 
 ## User Contract

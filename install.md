@@ -43,7 +43,7 @@ Five things must be true:
 ## 1. Clone
 
 ```bash
-test -d ~/Developer/video-director || git clone https://github.com/<your-account>/video-director ~/Developer/video-director
+test -d ~/Developer/video-director || git clone https://github.com/ek0kies/video-director ~/Developer/video-director
 cd ~/Developer/video-director
 ```
 

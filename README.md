@@ -12,7 +12,7 @@ Paste into Claude Code, Codex, Hermes, Openclaw, TRAE SOLO, or any agent with
 shell access:
 
 ```text
-Set up https://github.com/<your-account>/video-director for me.
+Set up https://github.com/ek0kies/video-director for me.
 Read install.md first and handle the environment yourself. The required runtime
 dependencies are Python 3.11+, Pillow from the root pyproject.toml, and
 ffmpeg/ffprobe.
@@ -23,7 +23,7 @@ permission for system package installation or cannot determine the agent's skill
 location.
 ```
 
-Replace the GitHub URL with the public link you submit to the contest.
+GitHub repository: https://github.com/ek0kies/video-director
 
 ## What it does
 
@@ -36,7 +36,7 @@ Replace the GitHub URL with the public link you submit to the contest.
 ## Manual quick start
 
 ```bash
-git clone https://github.com/<your-account>/video-director ~/Developer/video-director
+git clone https://github.com/ek0kies/video-director ~/Developer/video-director
 cd ~/Developer/video-director
 uv sync || pip install -e .
 # This installs dependencies from the skill root; runtime code stays bundled
@@ -53,7 +53,7 @@ bash scripts/video-director.sh run demo/contest/video-director.contest-demo.loca
 Windows:
 
 ```bat
-git clone https://github.com/<your-account>/video-director %USERPROFILE%\Developer\video-director
+git clone https://github.com/ek0kies/video-director %USERPROFILE%\Developer\video-director
 cd %USERPROFILE%\Developer\video-director
 uv sync || pip install -e .
 scripts\video-director.cmd demo

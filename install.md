@@ -17,8 +17,10 @@ that can discover a `SKILL.md` file.
 Five things must be true:
 
 1. The `video-director` repo is cloned somewhere stable.
-2. Python 3.11+ is available.
-3. Python dependencies from `pyproject.toml` are installed from the repo root.
+2. The launcher can find Python 3.11+ automatically, or `VIDEO_DIRECTOR_PYTHON`
+   points to one.
+3. Required Python packages are available to the interpreter selected by the
+   launcher.
 4. `ffmpeg` and `ffprobe` are available on `PATH`.
 5. The current agent can discover this repo's `SKILL.md`.
 
@@ -26,21 +28,23 @@ Five things must be true:
 
 - Do the setup yourself. Ask the user only for decisions or permissions you
   cannot safely infer, such as installing system packages.
-- Prefer a stable clone path such as `~/Developer/video-director` or
-  `%USERPROFILE%\Developer\video-director`.
+- Prefer a stable clone path. Examples include `~/Developer/video-director` on
+  Unix-like systems or `%USERPROFILE%\Developer\video-director` on Windows.
 - Choose the platform-appropriate package manager yourself. Do not ask the user
   to provide Python paths unless auto-detection fails.
 - Register the whole repo directory, not only `SKILL.md`; scripts and runtime
   must remain siblings of `SKILL.md`.
 - Verify with a real smoke command. Do not declare success from file existence
   alone.
-- Do not install optional cloud, TTS, avatar, Jianying, or animation dependencies
-  unless the user asks for those paths.
+- Do not install optional cloud, TTS, avatar, draft-adapter, or animation
+  dependencies unless the user asks for those paths.
 - Do not ask the user to open or copy template JSON files. The templates under
   `runtime/templates/` are internal; generate local configs from the user's
   request and ask only for missing information required by the selected path.
 
 ## 1. Clone
+
+Example:
 
 ```bash
 test -d ~/Developer/video-director || git clone https://github.com/ek0kies/video-director ~/Developer/video-director
@@ -53,7 +57,7 @@ If the repo already exists and is a Git checkout, run:
 git pull --ff-only
 ```
 
-## 2. Install Python dependencies
+## 2. Resolve Python
 
 Required dependencies:
 
@@ -64,29 +68,51 @@ Required dependencies:
 | ffmpeg | Required for final mp4 rendering |
 | ffprobe | Used for media/audio probing when available |
 
-Install Python dependencies with the best available tool. Prefer `uv` if
-available; fall back to pip:
+Do not assume `python3` is the right interpreter. First ask the launcher to
+select a compatible Python:
 
 ```bash
-uv sync || pip install -e .
+bash scripts/video-director.sh --help
 ```
 
-The root `pyproject.toml` is the dependency source. The runtime code stays
-bundled under `runtime/` and is loaded by the launcher; it is not installed as a
-separate package by default.
+Windows:
+
+```bat
+scripts\video-director.cmd --help
+```
+
+Only ask the user for a Python path if launcher auto-detection fails. If needed,
+set `VIDEO_DIRECTOR_PYTHON` to a Python 3.11+ executable and retry the launcher.
+
+## 3. Install Python packages when needed
+
+The runtime is loaded from the repo by the launcher. Do not create a new global
+Python environment just because the system default `python3` is older.
+
+Run doctor after ffmpeg is available. If doctor reports that Pillow is missing,
+install dependencies into the interpreter selected by the launcher.
+
+```bash
+VIDEO_DIRECTOR_PYTHON=/path/to/python3.11-or-newer
+"$VIDEO_DIRECTOR_PYTHON" -m pip install -e .
+```
+
+Use the exact compatible interpreter that the launcher selected. If
+`VIDEO_DIRECTOR_PYTHON` is already set, use that same interpreter.
 
 The baseline dependency is Pillow. Optional extras:
 
 ```bash
-pip install -e ".[jianying]"   # optional real Jianying draft experiments
-pip install -e ".[tos]"        # optional cloud audio delivery
+"$VIDEO_DIRECTOR_PYTHON" -m pip install -e ".[jianying]"   # optional Jianying draft adapter
+"$VIDEO_DIRECTOR_PYTHON" -m pip install -e ".[tos]"        # optional cloud audio delivery
 ```
 
-## 3. Install ffmpeg
+## 4. Install ffmpeg
 
 `ffmpeg` and `ffprobe` are hard requirements for the default mp4 path.
 
-Choose the correct package manager for the user's OS. Examples:
+Choose the correct package manager for the user's OS. The following are
+examples, not fixed requirements:
 
 ```bash
 # macOS
@@ -105,12 +131,13 @@ winget install Gyan.FFmpeg
 If package installation requires sudo/admin approval, show the exact command and
 wait. Do not guess or invent passwords.
 
-## 4. Register the skill
+## 5. Register the skill
 
 Register the whole repo with the current agent's skill mechanism. Do not copy
 only `SKILL.md`; scripts and runtime must remain siblings of `SKILL.md`.
 
-If the agent has a skills directory, symlink or copy the whole repo there:
+If the agent has a skills directory, symlink or copy the whole repo there. The
+following paths are examples:
 
 ```bash
 # Claude Code
@@ -127,7 +154,7 @@ skill-import mechanism documented by that agent. If the agent cannot determine
 the location, ask the user one concise question for the skills directory or
 whether to import `SKILL.md` through the agent's system prompt/config.
 
-## 5. Verify
+## 6. Verify
 
 Run a real local smoke test:
 
@@ -160,13 +187,13 @@ Tell the user:
 - Which agent skill directory was registered.
 - That a good first request is: "Use video-director to inventory these media
   files, propose a short-video strategy, and render an mp4 after I approve it."
-- That the default contest-safe path is local mp4 rendering; cloud/TTS/avatar and
-  Jianying draft export are optional follow-ups.
+- That the default contest-safe path is local mp4 rendering; cloud/TTS/avatar
+  and adapter-specific draft export are optional follow-ups.
 
 ## Keeping current
 
 ```bash
 cd ~/Developer/video-director
 git pull --ff-only
-uv sync || pip install -e .
+bash scripts/video-director.sh doctor <config>
 ```

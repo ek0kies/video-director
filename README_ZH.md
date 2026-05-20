@@ -1,17 +1,18 @@
 # video-director
 
-Turn local media into a directly playable short mp4 with a coding agent.
+用编码 Agent 把本地素材生成可直接播放的短视频 mp4。
 
-[简体中文](README_ZH.md)
+[English](README.md)
 
-Drop source media in a folder, ask an agent to use this skill, and get a
-timeline-backed `final.mp4` style output. The default path is local-first:
-manifest -> narration-first timeline -> ffmpeg render.
+把图片或视频素材放到一个目录里，让 Agent 使用这个 skill，即可得到基于时间线的 `final.mp4` 类输出。默认路径是本地优先：
 
-## Setup prompt
+```text
+素材清单 -> 旁白优先时间线 -> ffmpeg 渲染
+```
 
-Paste into Claude Code, Codex, Hermes, Openclaw, TRAE SOLO, or any agent with
-shell access:
+## 安装提示词
+
+复制给 Claude Code、Codex、Hermes、Openclaw、TRAE SOLO，或任何有 shell 权限的 Agent：
 
 ```text
 Set up https://github.com/ek0kies/video-director for me.
@@ -25,31 +26,29 @@ run the built-in demo smoke test. Only ask me if you need permission for system
 package installation or cannot determine the agent's skill location.
 ```
 
-GitHub repository: https://github.com/ek0kies/video-director
+GitHub 仓库地址：https://github.com/ek0kies/video-director
 
-## What it does
+## 能做什么
 
-- Inventories local image/video assets into a structured manifest.
-- Builds a narration-first beat sheet, edit decision list, and timeline model.
-- Renders a vertical mp4 through ffmpeg.
-- Burns subtitles by default.
-- Keeps cloud generation, TTS, avatar, and adapter-specific draft export optional.
+- 读取本地图片/视频素材，生成结构化素材清单。
+- 生成旁白优先的 beat sheet、剪辑决策和时间线模型。
+- 通过 ffmpeg 渲染竖屏 mp4。
+- 默认烧录字幕。
+- 云生成、TTS、数字人、可编辑草稿导出都是可选路径。
 
-## Manual quick start
+## 手动快速开始
 
 ```bash
 git clone https://github.com/ek0kies/video-director ~/Developer/video-director
 cd ~/Developer/video-director
 bash scripts/video-director.sh --help
-# If doctor later reports missing Python packages, install them into the
-# interpreter selected by the launcher.
 bash scripts/video-director.sh demo
 bash scripts/video-director.sh doctor demo/contest/video-director.contest-demo.local.json
 bash scripts/video-director.sh run demo/contest/video-director.contest-demo.local.json --dry-run
 bash scripts/video-director.sh run demo/contest/video-director.contest-demo.local.json
 ```
 
-Windows:
+Windows：
 
 ```bat
 git clone https://github.com/ek0kies/video-director %USERPROFILE%\Developer\video-director
@@ -60,17 +59,13 @@ scripts\video-director.cmd run demo\contest\video-director.contest-demo.local.js
 scripts\video-director.cmd run demo\contest\video-director.contest-demo.local.json
 ```
 
-## Daily use
+## 日常使用
 
-After installation, point your agent at a folder containing source media and say:
+安装后，把 Agent 指向素材目录，然后说：
 
 ```text
 Use video-director to inventory these materials, propose a short-video strategy,
 and render a direct mp4 after I approve the plan.
 ```
 
-The public command surface is `scripts/video-director.sh` on Unix/macOS and
-`scripts\video-director.cmd` on Windows; see `SKILL.md` for the full workflow.
-Config templates are internal to the skill. In normal use, the agent generates
-the local config from your request and only asks for missing information when a
-selected path requires it.
+Unix/macOS 使用 `scripts/video-director.sh`，Windows 使用 `scripts\video-director.cmd`。配置模板是 skill 内部实现细节；正常使用时，Agent 会根据你的请求生成本地配置，只在所选路径缺少必要信息时再询问。

@@ -68,6 +68,7 @@ class ProductionBundle:
     tts_clips: List[AudioClip] = field(default_factory=list)
     avatar_clips: List[AvatarClip] = field(default_factory=list)
     understanding: Dict[str, Any] = field(default_factory=dict)
+    copy_review: Dict[str, Any] = field(default_factory=dict)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 

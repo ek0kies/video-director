@@ -16,6 +16,9 @@ class ProductionConfigError(ValueError):
 
 VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".avi", ".mkv", ".webm"}
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".bmp"}
+NARRATION_SOURCE_USER = "user_provided"
+NARRATION_SOURCE_GENERATED = "generated"
+SUPPORTED_NARRATION_SOURCES = {NARRATION_SOURCE_USER, NARRATION_SOURCE_GENERATED}
 
 
 def _is_remote_path(raw: str) -> bool:
@@ -63,6 +66,7 @@ class ProductionBundleBuilder:
         script_text = str(inputs.get("narration_text") or inputs.get("script_text", "")).strip()
         if not script_text:
             raise ProductionConfigError("inputs.narration_text is required")
+        copy_review = self._build_copy_review(inputs)
 
         job_id = str(
             config.get("job_id")
@@ -92,13 +96,36 @@ class ProductionBundleBuilder:
             tts_clips=tts_clips,
             avatar_clips=avatar_clips,
             understanding=understanding,
+            copy_review=copy_review,
             metadata={
                 "source": str(production.get("mode", "config") or "config"),
+                "narration_source": copy_review["source"],
                 "materials_count": len(materials),
                 "tts_clip_count": len(tts_clips),
                 "avatar_clip_count": len(avatar_clips),
             },
         )
+
+    def _build_copy_review(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
+        source = str(inputs.get("narration_source") or "user_provided").strip().lower()
+        if source not in SUPPORTED_NARRATION_SOURCES:
+            raise ProductionConfigError(
+                "inputs.narration_source must be 'user_provided' or 'generated'"
+            )
+        review = inputs.get("copy_review", {}) if isinstance(inputs.get("copy_review"), dict) else {}
+        required = source == NARRATION_SOURCE_GENERATED or bool(review.get("required", False))
+        status = str(review.get("status") or ("pending" if required else "approved")).strip().lower()
+        if required and status != "approved":
+            raise ProductionConfigError(
+                "generated narration_text must be reviewed before rendering; "
+                "set inputs.copy_review.status='approved' after review"
+            )
+        return {
+            "source": source,
+            "required": required,
+            "status": status,
+            "scope": str(review.get("scope") or "viewer_visible_narration"),
+        }
 
     def _load_understanding(self, production: Dict[str, Any]) -> Dict[str, Any]:
         path = str(production.get("understanding_path", "")).strip()

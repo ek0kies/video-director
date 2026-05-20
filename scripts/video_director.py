@@ -30,6 +30,7 @@ if str(_skill_root()) not in sys.path:
 from runtime.assets_manifest import AssetAnalysisError, build_assets_manifest  # noqa: E402
 from runtime.config_prepare import prepare_config  # noqa: E402
 from runtime.doctor import run_doctor  # noqa: E402
+from runtime.production import ProductionConfigError  # noqa: E402
 from runtime.summarize import summarize_run  # noqa: E402
 from runtime.workflow import VideoDirectorWorkflow  # noqa: E402
 
@@ -189,7 +190,12 @@ def _cmd_run(args: Sequence[str]) -> int:
     if not config_path.is_file():
         raise SystemExit(f"error: config not found: {config_path}")
     workflow = VideoDirectorWorkflow(_read_json(config_path), cwd=workspace_root, dry_run=bool(parsed.dry_run))
-    print(json.dumps(workflow.run(), ensure_ascii=False, indent=2))
+    try:
+        result = workflow.run()
+    except ProductionConfigError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
 
 

@@ -105,6 +105,10 @@ Important config semantics:
 
 - `inputs.narration_text` is viewer-facing narration/subtitle text.
 - `inputs.director_brief` is planning guidance and must not appear as subtitles.
+- User-provided `inputs.narration_text` can render directly.
+- Generated viewer-facing copy must set `inputs.narration_source="generated"` and
+  must be reviewed before rendering. Use `--generated-narration-text` for
+  generated copy and add `--copy-reviewed` only after review approval.
 - `--output-mode video` maps to `outputs.targets=["final_render"]`.
 - `--output-mode draft` maps to the current editable-draft adapter target.
 - Internal bundles or debug artifacts are not valid substitutes for `video`.

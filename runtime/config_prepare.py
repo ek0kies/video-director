@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import platform
+import sys
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
@@ -20,6 +21,9 @@ DRAFT_TEMPLATE = "runtime/templates/draft.template.json"
 OUTPUT_MODE_DRAFT = "draft"
 OUTPUT_MODE_VIDEO = "video"
 SUPPORTED_OUTPUT_MODES = (OUTPUT_MODE_DRAFT, OUTPUT_MODE_VIDEO)
+NARRATION_SOURCE_USER = "user_provided"
+NARRATION_SOURCE_GENERATED = "generated"
+SUPPORTED_NARRATION_SOURCES = (NARRATION_SOURCE_USER, NARRATION_SOURCE_GENERATED)
 UNSUPPORTED_DRAFT_ADAPTER_MESSAGE = (
     "The current editable-draft adapter is not supported on macOS in this package. "
     "Use --output-mode video for the judge-safe mp4 path, or run draft export in a supported environment. "
@@ -66,9 +70,23 @@ def _parse_scalar(raw: str) -> Any:
 
 
 def _read_script_text(args: argparse.Namespace) -> Optional[str]:
-    provided = [bool(args.script_text), bool(args.script_file), bool(args.narration_text), bool(args.narration_file)]
+    provided = [
+        bool(args.script_text),
+        bool(args.script_file),
+        bool(args.narration_text),
+        bool(args.narration_file),
+        bool(args.generated_narration_text),
+        bool(args.generated_narration_file),
+    ]
     if sum(provided) > 1:
-        raise ValueError("--script-text, --script-file, --narration-text and --narration-file are mutually exclusive")
+        raise ValueError(
+            "--script-text, --script-file, --narration-text, --narration-file, "
+            "--generated-narration-text and --generated-narration-file are mutually exclusive"
+        )
+    if args.generated_narration_text:
+        return args.generated_narration_text
+    if args.generated_narration_file:
+        return Path(args.generated_narration_file).expanduser().read_text(encoding="utf-8")
     if args.narration_text:
         return args.narration_text
     if args.narration_file:
@@ -103,6 +121,31 @@ def _disable_default_avatar(payload: Dict[str, Any]) -> None:
     editing["avatar_opening_segments"] = 0
     editing["avatar_middle_segments"] = 0
     editing["avatar_ending_segments"] = 0
+
+
+def _resolve_narration_source(args: argparse.Namespace, script_text: Optional[str]) -> str:
+    if args.narration_source:
+        return str(args.narration_source)
+    if args.generated_narration_text or args.generated_narration_file:
+        return NARRATION_SOURCE_GENERATED
+    if script_text is not None:
+        return NARRATION_SOURCE_USER
+    return NARRATION_SOURCE_GENERATED
+
+
+def _apply_copy_review(inputs: Dict[str, Any], *, source: str, approved: bool) -> None:
+    required = source == NARRATION_SOURCE_GENERATED
+    inputs["narration_source"] = source
+    inputs["copy_review"] = {
+        "required": required,
+        "status": "approved" if approved or not required else "pending",
+        "scope": "viewer_visible_narration",
+        "note": (
+            "User-provided narration does not require review."
+            if not required
+            else "Generated viewer-facing copy must be reviewed before rendering."
+        ),
+    }
 
 
 def _apply_output_mode(payload: Dict[str, Any], *, runtime_mode: str, output_mode: str) -> None:
@@ -153,6 +196,18 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--script-file", help="text file used as inputs.script_text")
     parser.add_argument("--narration-text", help="viewer-facing narration/subtitle text")
     parser.add_argument("--narration-file", help="text file used as inputs.narration_text")
+    parser.add_argument("--generated-narration-text", help="generated viewer-facing narration/subtitle text")
+    parser.add_argument("--generated-narration-file", help="generated text file used as inputs.narration_text")
+    parser.add_argument(
+        "--narration-source",
+        choices=SUPPORTED_NARRATION_SOURCES,
+        help="source of viewer-facing narration; generated copy requires review",
+    )
+    parser.add_argument(
+        "--copy-reviewed",
+        action="store_true",
+        help="mark generated viewer-facing narration as reviewed and approved",
+    )
     parser.add_argument("--director-brief", help="planning guidance that should not be shown as subtitles")
     parser.add_argument("--topic-hint", help="override inputs.topic_hint")
     parser.add_argument("--materials-dir", help="override inputs.materials_dir")
@@ -209,12 +264,18 @@ def prepare_config(args: argparse.Namespace, *, skill_root: Optional[Path] = Non
 
     if script_text is not None:
         inputs["narration_text"] = script_text
+    _apply_copy_review(
+        inputs,
+        source=_resolve_narration_source(args, script_text),
+        approved=bool(args.copy_reviewed),
+    )
     if args.director_brief:
         inputs["director_brief"] = args.director_brief
     if args.topic_hint:
         inputs["topic_hint"] = args.topic_hint
     if args.materials_dir:
         inputs["materials_dir"] = args.materials_dir
+        production.pop("materials", None)
     if args.avatar_path:
         inputs["avatar_path"] = args.avatar_path
     if args.avatar_image_path:

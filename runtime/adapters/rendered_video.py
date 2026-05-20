@@ -610,16 +610,19 @@ class RenderedVideoAdapter(OutputAdapter):
             fill=self._rgba_tuple(self.effective_config.get("subtitle_box_color"), fallback=(0, 0, 0, 150)),
         )
 
-        current_y = box_top + padding_y
+        block_top = box_top + (box_bottom - box_top - text_height) / 2
+        current_y = block_top
         text_color = self._rgba_tuple(self.effective_config.get("subtitle_text_color"), fallback=(255, 255, 255, 255))
         stroke_color = self._rgba_tuple(self.effective_config.get("subtitle_stroke_color"), fallback=(0, 0, 0, 210))
         stroke_width = self._subtitle_stroke_width()
         for line, box in zip(lines, text_boxes):
+            box_left, box_top_offset, _, _ = box
             line_width = box[2] - box[0]
             line_height = box[3] - box[1]
-            x = (width - line_width) / 2
+            x = (width - line_width) / 2 - box_left
+            y = current_y - box_top_offset
             draw.text(
-                (x, current_y),
+                (x, y),
                 line,
                 font=font,
                 fill=text_color,

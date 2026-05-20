@@ -32,6 +32,9 @@ Five things must be true:
   Unix-like systems or `%USERPROFILE%\Developer\video-director` on Windows.
 - Choose the platform-appropriate package manager yourself. Do not ask the user
   to provide Python paths unless auto-detection fails.
+- Do not install Miniforge, Conda, Anaconda, pyenv, or any other Python
+  distribution automatically. If no compatible Python is found, stop and ask
+  the user to choose a lightweight installation method.
 - Register the whole repo directory, not only `SKILL.md`; scripts and runtime
   must remain siblings of `SKILL.md`.
 - Verify with a real smoke command. Do not declare success from file existence
@@ -68,8 +71,8 @@ Required dependencies:
 | ffmpeg | Required for final mp4 rendering |
 | ffprobe | Used for media/audio probing when available |
 
-Do not assume `python3` is the right interpreter. First ask the launcher to
-select a compatible Python:
+Do not assume `python3` is wrong just because another machine reports an older
+default. The launcher checks `python3`, then `python`, then versioned commands:
 
 ```bash
 bash scripts/video-director.sh --help
@@ -81,8 +84,35 @@ Windows:
 scripts\video-director.cmd --help
 ```
 
-Only ask the user for a Python path if launcher auto-detection fails. If needed,
-set `VIDEO_DIRECTOR_PYTHON` to a Python 3.11+ executable and retry the launcher.
+Only ask the user for a Python path if launcher auto-detection fails. Never
+install Miniforge, Conda, Anaconda, pyenv, or another Python distribution as a
+fallback. Before proposing any Python installation, explicitly test both
+`python3` and `python`:
+
+```bash
+python3 -c "import sys; print(sys.executable); print(sys.version)"
+python -c "import sys; print(sys.executable); print(sys.version)"
+```
+
+If either reports Python 3.11 or newer, use that command:
+
+```bash
+export VIDEO_DIRECTOR_PYTHON=python3  # or python, whichever is Python 3.11+
+bash scripts/video-director.sh --help
+```
+
+Windows:
+
+```bat
+python3 -c "import sys; print(sys.executable); print(sys.version)"
+python -c "import sys; print(sys.executable); print(sys.version)"
+set VIDEO_DIRECTOR_PYTHON=python3
+scripts\video-director.cmd --help
+```
+
+If neither command is compatible, stop and ask the user how they want Python
+3.11+ installed. Prefer a lightweight OS/package-manager Python over a full
+Python distribution. Do not download installer bundles on your own.
 
 ## 3. Install Python packages when needed
 

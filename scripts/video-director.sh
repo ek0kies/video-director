@@ -30,6 +30,8 @@ video_director_resolve_python() {
   fi
 
   candidates+=(
+    "python3"
+    "python"
     "python3.13"
     "python3.12"
     "python3.11"
@@ -39,8 +41,6 @@ video_director_resolve_python() {
     "/opt/homebrew/bin/python3.13"
     "/opt/homebrew/bin/python3.12"
     "/opt/homebrew/bin/python3.11"
-    "python3"
-    "python"
   )
 
   local candidate
@@ -53,7 +53,10 @@ video_director_resolve_python() {
 
   {
     echo "error: Python 3.11 or newer is required for Video Director."
-    echo "Set VIDEO_DIRECTOR_PYTHON=/path/to/python3.11-or-newer, or install Python 3.11+."
+    echo "Checked 'python3', 'python', and versioned Python commands."
+    echo "If 'python3' or 'python' is compatible in your shell, set VIDEO_DIRECTOR_PYTHON to that command and retry."
+    echo "Do not install Miniforge, Conda, Anaconda, pyenv, or another Python distribution automatically."
+    echo "Ask the user to choose a lightweight Python installation method if no compatible interpreter exists."
     echo "Checked: ${candidates[*]}"
   } >&2
   return 1

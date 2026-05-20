@@ -21,8 +21,10 @@ ffmpeg/ffprobe.
 Clone the repo to a stable local path, use the launcher to detect an existing
 Python 3.11+ before installing anything, install only missing dependencies into
 that interpreter, register the whole repo as a skill for the current agent, then
-run the built-in demo smoke test. Only ask me if you need permission for system
-package installation or cannot determine the agent's skill location.
+run the built-in demo smoke test. Do not install Miniforge, Conda, Anaconda,
+pyenv, or another Python distribution automatically; ask me first if no
+compatible Python exists. Only ask me if you need permission for system package
+installation or cannot determine the agent's skill location.
 ```
 
 GitHub repository: https://github.com/ek0kies/video-director

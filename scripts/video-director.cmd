@@ -12,14 +12,16 @@ if not "%VIDEO_DIRECTOR_PYTHON%"=="" (
   exit /b 1
 )
 
-for %%P in ("py -3.11" "py -3" "python" "python3") do (
+for %%P in ("python3" "python" "py -3" "py -3.11") do (
   set "VIDEO_DIRECTOR_SELECTED_PYTHON=%%~P"
   call :check
   if not errorlevel 1 goto run
 )
 
 echo error: Python 3.11 or newer is required for Video Director. 1>&2
-echo Install Python 3.11+ or set VIDEO_DIRECTOR_PYTHON to a compatible python.exe. 1>&2
+echo Checked python3, python, and py launcher commands. If python3 or python is compatible, set VIDEO_DIRECTOR_PYTHON to that command and retry. 1>&2
+echo Do not install Miniforge, Conda, Anaconda, pyenv, or another Python distribution automatically. 1>&2
+echo Ask the user to choose a lightweight Python installation method if no compatible interpreter exists. 1>&2
 exit /b 1
 
 :check

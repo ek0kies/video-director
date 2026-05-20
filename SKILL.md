@@ -44,8 +44,14 @@ Windows:
 scripts\video-director.cmd --help
 ```
 
-Both launchers auto-detect Python 3.11+. If auto-detection fails, ask the user
-to set `VIDEO_DIRECTOR_PYTHON` to a compatible interpreter.
+Both launchers auto-detect Python 3.11+ and check `python3`, `python`, then
+versioned commands. If auto-detection fails, test both `python3` and `python`
+explicitly before proposing an installation. When either is compatible, set
+`VIDEO_DIRECTOR_PYTHON` to that command and continue.
+
+Do not install Miniforge, Conda, Anaconda, pyenv, or any other Python
+distribution automatically. If no compatible Python exists, stop and ask the
+user to choose a lightweight installation method.
 
 ## Workflow
 

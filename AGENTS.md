@@ -46,14 +46,14 @@ Unix/macOS:
 
 ```bash
 bash scripts/video-director.sh --help
-bash scripts/video-director.sh config local --output-mode video --output video-director-smoke.local.json --job-id smoke --narration-text smoke
+bash scripts/video-director.sh config local --output-mode video --output .video-director/configs/video-director-smoke.local.json --job-id smoke --narration-text smoke
 ```
 
 Windows:
 
 ```bat
 scripts\video-director.cmd --help
-scripts\video-director.cmd config local --output-mode video --output video-director-smoke.local.json --job-id smoke --narration-text smoke
+scripts\video-director.cmd config local --output-mode video --output .video-director\configs\video-director-smoke.local.json --job-id smoke --narration-text smoke
 ```
 
 For render-path changes, also run the public smoke flow from `SKILL.md` and

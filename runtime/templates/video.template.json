@@ -71,7 +71,9 @@
     "final_render": {
       "output_name": "video-director-final.mp4",
       "burn_subtitles": true,
-      "emit_sidecar_srt": false
+      "emit_sidecar_srt": false,
+      "allow_sidecar_srt": false,
+      "subtitle_strip_trailing_punctuation": true
     }
   }
 }

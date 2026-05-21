@@ -158,7 +158,7 @@ if ($PythonCmd -and (Test-Path -LiteralPath $ConfigPath)) {
 } elseif (-not (Test-Path -LiteralPath $ConfigPath)) {
     Write-Fail "config not found: $ConfigPath"
     Write-Host "FIX config:"
-    Write-Host "  powershell -ExecutionPolicy Bypass -File scripts\run.ps1 config local --output-mode video --output video-director.video.local.json --job-id demo --narration-text smoke"
+    Write-Host "  powershell -ExecutionPolicy Bypass -File scripts\run.ps1 config local --output-mode video --output .video-director\configs\video-director.video.local.json --job-id demo --narration-text smoke"
 }
 
 if ($FailCount -eq 0) {

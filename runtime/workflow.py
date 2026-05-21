@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -70,6 +71,7 @@ class VideoDirectorWorkflow:
         job_root, output_root, run_id = self._resolve_output_layout(bundle)
         kernel = self._build_kernel(pre_production=True)
         kernel_output = kernel.build(bundle)
+        self._validate_visual_timeline(kernel_output)
         remote_manifest_path = ""
 
         if self._use_cloud_production():
@@ -84,6 +86,7 @@ class VideoDirectorWorkflow:
             remote_manifest_path = str(generator.manifest_path.resolve()) if generator.checkpoint_enabled else ""
             bundle = generator.produce(bundle, kernel_output.beat_sheet)
             kernel_output = self._build_kernel(pre_production=False).build(bundle)
+            self._validate_visual_timeline(kernel_output)
 
         _write_json(output_root / "config.snapshot.json", _sanitize_config_snapshot(self.config))
         _write_json(output_root / "Production_Bundle.json", to_dict(bundle))
@@ -97,17 +100,25 @@ class VideoDirectorWorkflow:
             kernel_output=kernel_output,
         )
         self._write_latest_run_pointer(job_root=job_root, output_root=output_root, run_id=run_id)
-        return {
+        deliverables = self._public_deliverables(adapter_results)
+        result: Dict[str, Any] = {
+            "status": "rendered" if any(item.get("status") == "rendered" for item in deliverables) else "completed",
             "job_id": bundle.job_id,
-            "job_root": str(job_root),
-            "output_root": str(output_root),
             "run_id": run_id,
-            "timeline_path": str(output_root / "Timeline_Model.json"),
-            "beat_sheet_path": str(output_root / "BeatSheet.json"),
-            "edl_path": str(output_root / "Edit_Decision_List.json"),
-            "remote_manifest_path": remote_manifest_path,
-            "targets": [to_dict(result) for result in adapter_results],
+            "deliverables": deliverables,
+            "latest_run": str(job_root / "latest_run.json"),
         }
+        if self._should_report_internal_artifacts():
+            result["internal"] = {
+                "job_root": str(job_root),
+                "output_root": str(output_root),
+                "timeline_path": str(output_root / "Timeline_Model.json"),
+                "beat_sheet_path": str(output_root / "BeatSheet.json"),
+                "edl_path": str(output_root / "Edit_Decision_List.json"),
+                "remote_manifest_path": remote_manifest_path,
+                "targets": [to_dict(adapter_result) for adapter_result in adapter_results],
+            }
+        return result
 
     def _build_kernel(self, *, pre_production: bool) -> NarrationFirstEditKernel:
         editing = copy.deepcopy(self.config.get("editing", {}))
@@ -124,6 +135,33 @@ class VideoDirectorWorkflow:
         if not isinstance(production, dict):
             return False
         return self._use_cloud_production() and bool(production.get("enable_avatar_generation", False))
+
+    def _should_report_internal_artifacts(self) -> bool:
+        outputs = self.config.get("outputs", {})
+        configured = bool(outputs.get("report_internal_artifacts", False)) if isinstance(outputs, dict) else False
+        return configured or os.environ.get("VIDEO_DIRECTOR_VERBOSE_RESULT", "").strip() in {"1", "true", "yes"}
+
+    @staticmethod
+    def _validate_visual_timeline(kernel_output: KernelOutput) -> None:
+        tracks = kernel_output.timeline.tracks
+        visual_clips = list(tracks.get("material_track", [])) + list(tracks.get("avatar_track", []))
+        usable = [
+            clip
+            for clip in visual_clips
+            if VideoDirectorWorkflow._is_real_visual_source(str(clip.source_path or "").strip())
+            and clip.end_ms > clip.start_ms
+        ]
+        if not usable:
+            raise WorkflowError("final video requires at least one real visual asset; refusing subtitle-only output")
+
+    @staticmethod
+    def _is_real_visual_source(source: str) -> bool:
+        if not source or source == "generated://black":
+            return False
+        lowered = source.lower()
+        if lowered.startswith(("http://", "https://")):
+            return True
+        return Path(source).suffix.lower() in {".mp4", ".mov", ".m4v", ".avi", ".mkv", ".webm", ".jpg", ".jpeg", ".png", ".webp", ".heic", ".bmp"}
 
     def _resolve_output_layout(self, bundle: ProductionBundle) -> Tuple[Path, Path, str]:
         outputs = self.config.get("outputs", {})
@@ -163,6 +201,25 @@ class VideoDirectorWorkflow:
                 "updated_at": int(time.time()),
             },
         )
+
+    @staticmethod
+    def _public_deliverables(adapter_results: List[AdapterResult]) -> List[Dict[str, Any]]:
+        deliverables: List[Dict[str, Any]] = []
+        for result in adapter_results:
+            artifact = str(result.artifact_path or "").strip()
+            suffix = Path(artifact).suffix.lower()
+            if suffix not in {".mp4", ".mov", ".m4v"}:
+                continue
+            deliverables.append(
+                {
+                    "target": result.target,
+                    "status": result.status,
+                    "type": "video",
+                    "path": artifact,
+                    "note": result.note,
+                }
+            )
+        return deliverables
 
     def _render_targets(
         self,

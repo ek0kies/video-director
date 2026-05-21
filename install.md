@@ -23,6 +23,10 @@ Five things must be true:
 4. `scripts/doctor.sh` reports `STATUS PASS`.
 5. The current agent invokes the Skill through `scripts/run.sh`.
 
+The setup is cross-platform. Do not treat Windows, macOS, Linux, Codex, TRAE
+SOLO, Antigravity, or any other Agent as the product boundary. The boundary is
+the public launcher plus the whole repository registered as a Skill.
+
 ## Agent fast path
 
 Run these commands from the Skill root. Do not ask the human to perform them
@@ -73,6 +77,11 @@ examples/install-prompt.md
 - Do not ask the user to open or copy template JSON files. The templates under
   `runtime/templates/` are internal; generate local configs from the user's
   request and ask only for missing information required by the selected path.
+- Do not create one-off job scripts, config files, manifests, generated mp4
+  files, SRT files, or reports in the Skill root. Use the user's workspace
+  `.video-director/` directory or the runtime `output/video_director/` tree.
+- When reporting success, lead with the final mp4 or requested draft path.
+  Internal files are only for Agent/debug use.
 
 ## 1. Clone
 
@@ -151,6 +160,10 @@ If neither command is compatible, stop and ask the user how they want Python
 3.10+ installed. Prefer a lightweight OS/package-manager Python over a full
 Python distribution. Do not download installer bundles on your own.
 
+If one command alias fails but another works, continue with the working command.
+For example, `python3` may be missing on Windows while `python` or `py -3` is a
+valid Python 3.10+ interpreter.
+
 ## 3. Install Python packages when needed
 
 The runtime is loaded from the repo by the launcher. Use the managed isolated
@@ -170,6 +183,22 @@ powershell -ExecutionPolicy Bypass -File scripts\install.ps1 -SkipSystemInstall
 `requirements.txt` is the baseline dependency manifest used by the installer.
 `pyproject.toml` remains the project metadata source. Do not add another
 dependency manifest under `runtime/`.
+
+If dependency download is slow or times out, retry inside the managed
+environment instead of installing globally. Agents may increase pip timeout and
+use a user-appropriate mirror when allowed by the environment:
+
+```bash
+python -m pip install --timeout 120 --retries 5 -r requirements.txt
+```
+
+PowerShell:
+
+```powershell
+$env:PIP_DEFAULT_TIMEOUT = "120"
+$env:PIP_RETRIES = "5"
+& .\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
 
 Optional extras are not installed by default:
 
@@ -254,6 +283,8 @@ Tell the user:
   files, propose a short-video strategy, and render an mp4 after I approve it."
 - That the default contest-safe path is local mp4 rendering; cloud/TTS/avatar
   and adapter-specific draft export are optional follow-ups.
+- That routine generated files live under the workspace/internal output tree,
+  not in the Skill source directory.
 
 ## Updating an existing install
 

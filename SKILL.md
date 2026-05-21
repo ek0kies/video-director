@@ -72,6 +72,31 @@ powershell -ExecutionPolicy Bypass -File scripts\run.ps1 update -Help
 - Do not ask the human to manually install packages, hand-edit JSON, or run
   step-by-step setup commands unless the printed fix requires admin/system
   permission or no compatible Python can be found.
+- This is a general-purpose Skill. Do not special-case one operating system,
+  one Agent product, or one model provider in the workflow. Use the platform
+  launcher only as an execution detail.
+
+## Artifact Hygiene
+
+- Treat the Skill root as read-only product source during normal use. Do not
+  create user job scripts, one-off config JSON, generated media, SRT files,
+  manifests, or scratch reports next to `SKILL.md`.
+- Put generated working files under the user's workspace, preferably
+  `.video-director/` or `output/video_director/`. Use
+  `VIDEO_DIRECTOR_WORKSPACE_ROOT` when invoking the Skill from another current
+  directory.
+- User-facing output is the final mp4 or the requested editable draft. Internal
+  artifacts such as manifests, config snapshots, beat sheets, EDL, timeline
+  models, render plans, staging media, and review JSON are for Agent/debug use.
+- Report the final deliverable path first. Mention internal files only when the
+  user asks for debugging details or a command fails.
+- `summarize` is concise by default. Use `summarize --verbose` only when you
+  need internal debug artifact paths.
+- Do not emit external `.srt` files in normal mp4 delivery. Subtitles are burned
+  into the mp4 by default, and sidecar SRT requires an explicit advanced config
+  opt-in with both `emit_sidecar_srt=true` and `allow_sidecar_srt=true`.
+- A final mp4 must contain at least one real visual asset. Subtitle-only,
+  text-only, or black-screen outputs are failures, not acceptable deliverables.
 
 ## User Contract
 
@@ -88,6 +113,12 @@ powershell -ExecutionPolicy Bypass -File scripts\run.ps1 update -Help
 - Do not turn the default assumptions into a long form. Ask only for the choices
   that materially change the output: TTS or voiceover, burned subtitles, source
   audio retention, external music, and editable draft export.
+- If the user asks for voiceover, dubbing, or TTS, do not stop at checking local
+  speech capabilities. Present the available paths: use a user-provided audio
+  file, generate and review narration text for manual recording, or use the
+  optional cloud TTS path. The bundled cloud template includes Doubao TTS
+  (`doubao_tts2_v3_http_chunked`), which requires explicit user selection and
+  credentials.
 - Do not frame missing narration or copy as the user's fault; describe the
   default as a "clean edit" instead.
 - If the user asks to proceed quickly or accepts the assumptions, continue with
@@ -213,6 +244,9 @@ Before generating config, apply this clarification gate:
 - If the user requested TTS, avatar, cloud delivery, or editable draft export,
   ask only for the credentials, paths, or adapter constraints required by that
   selected path.
+- If the user requested voiceover but did not choose a path, ask one concise
+  question that names the meaningful choices: provided audio, generated copy for
+  review, or optional Doubao TTS.
 
 ### 2. Generate Config
 
@@ -221,11 +255,11 @@ Direct mp4 path:
 ```bash
 bash scripts/run.sh config local \
   --output-mode video \
-  --output /path/to/workspace/video-director.video.local.json \
+  --output /path/to/workspace/.video-director/configs/video-director.video.local.json \
   --job-id demo-video \
   --narration-text "Viewer-facing narration and subtitles go here." \
   --director-brief "Private editing guidance goes here." \
-  --set production.assets_manifest_path='"/path/to/workspace/assets_manifest.json"' \
+  --set production.assets_manifest_path='"/path/to/workspace/.video-director/assets_manifest.json"' \
   --set production.full_tts_duration_ms=30000 \
   --set outputs.final_render.output_name='"demo-video.mp4"'
 ```
@@ -238,13 +272,13 @@ only add `--copy-reviewed` after approval:
 ```bash
 bash scripts/run.sh config local \
   --output-mode video \
-  --output /path/to/workspace/video-director.generated.local.json \
+  --output /path/to/workspace/.video-director/configs/video-director.generated.local.json \
   --job-id generated-video \
   --generated-narration-text "Generated subtitles for human review." \
   --set production.full_tts_duration_ms=30000
 bash scripts/run.sh review-copy \
-  /path/to/workspace/video-director.generated.local.json \
-  --output /path/to/workspace/copy_review.pending.json
+  /path/to/workspace/.video-director/configs/video-director.generated.local.json \
+  --output /path/to/workspace/.video-director/reviews/copy_review.pending.json
 ```
 
 Editable draft path, only when explicitly requested:
@@ -252,10 +286,10 @@ Editable draft path, only when explicitly requested:
 ```bash
 bash scripts/run.sh config local \
   --output-mode draft \
-  --output /path/to/workspace/video-director.draft.local.json \
+  --output /path/to/workspace/.video-director/configs/video-director.draft.local.json \
   --job-id demo-draft \
   --narration-text "Viewer-facing narration and subtitles go here." \
-  --set production.assets_manifest_path='"/path/to/workspace/assets_manifest.json"'
+  --set production.assets_manifest_path='"/path/to/workspace/.video-director/assets_manifest.json"'
 ```
 
 If the current environment is unsupported for the selected draft adapter, stop
@@ -282,7 +316,7 @@ Important config semantics:
 ### 3. Doctor
 
 ```bash
-bash scripts/doctor.sh /path/to/workspace/video-director.video.local.json
+bash scripts/doctor.sh /path/to/workspace/.video-director/configs/video-director.video.local.json
 ```
 
 Stop on required errors. `ffmpeg` is required for real mp4 rendering.
@@ -290,8 +324,8 @@ Stop on required errors. `ffmpeg` is required for real mp4 rendering.
 ### 4. Dry Run And Render
 
 ```bash
-bash scripts/run.sh run /path/to/workspace/video-director.video.local.json --dry-run
-bash scripts/run.sh run /path/to/workspace/video-director.video.local.json
+bash scripts/run.sh run /path/to/workspace/.video-director/configs/video-director.video.local.json --dry-run
+bash scripts/run.sh run /path/to/workspace/.video-director/configs/video-director.video.local.json
 ```
 
 Relative media and output paths resolve against the caller's working directory.
@@ -304,7 +338,8 @@ directory.
 bash scripts/run.sh summarize output/video_director/<job_id>/latest_run.json
 ```
 
-Report the mp4 path, render status, beat count, and generated target files.
+Report the mp4 path, render status, and beat count. Do not list internal target
+files unless the user asks for debug details.
 
 ## Smoke Test
 
@@ -330,10 +365,17 @@ default. Set `VIDEO_DIRECTOR_KEEP_SMOKE=1` only when you need to inspect output.
   require new human permission.
 - If rendering fails, inspect `final_render.render_plan.json` and the ffmpeg
   error.
-- If a sidecar `.srt` appears unexpectedly, check
-  `outputs.final_render.emit_sidecar_srt`.
+- If a sidecar `.srt` appears unexpectedly, treat it as a bug unless both
+  `outputs.final_render.emit_sidecar_srt` and
+  `outputs.final_render.allow_sidecar_srt` were explicitly enabled.
+- If Chinese subtitles render as blocks, set
+  `outputs.final_render.subtitle_font_path` or `VIDEO_DIRECTOR_SUBTITLE_FONT`
+  to a CJK-capable font and rerender. Do not ship the blocked subtitle output.
 - If subtitles show planning text, move viewer-facing copy to
   `inputs.narration_text` and private guidance to `inputs.director_brief`.
+- If a render has subtitles but no real picture, inspect source materials and
+  rerun through the public launcher. Do not report subtitle-only output as
+  success.
 - If material matching is weak, improve the manifest instead of asking the user
   to configure a separate visual model.
 - If an editable-draft adapter dependency is missing, do not downgrade to a

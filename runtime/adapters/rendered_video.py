@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import math
+import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -15,6 +17,7 @@ from .base import OutputAdapter
 
 
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".bmp"}
+TRAILING_SUBTITLE_PUNCTUATION = "，,。.!！?？;；:：、"
 
 
 class RenderAdapterError(RuntimeError):
@@ -38,6 +41,7 @@ DEFAULTS_BY_TARGET: Dict[str, Dict[str, Any]] = {
         "background_dim_brightness": -0.10,
         "background_saturation": 0.88,
         "emit_sidecar_srt": False,
+        "allow_sidecar_srt": False,
         "burn_subtitles": True,
         "transition_mode": "fade",
         "transition_duration_ms": 220,
@@ -50,6 +54,7 @@ DEFAULTS_BY_TARGET: Dict[str, Dict[str, Any]] = {
         "subtitle_stroke_color": (0, 0, 0, 210),
         "subtitle_stroke_width": 2,
         "subtitle_font_size": 48,
+        "subtitle_strip_trailing_punctuation": True,
     },
     "final_render": {
         "output_name": "final.mp4",
@@ -65,6 +70,7 @@ DEFAULTS_BY_TARGET: Dict[str, Dict[str, Any]] = {
         "background_dim_brightness": -0.10,
         "background_saturation": 0.88,
         "emit_sidecar_srt": False,
+        "allow_sidecar_srt": False,
         "burn_subtitles": True,
         "transition_mode": "fade",
         "transition_duration_ms": 260,
@@ -77,6 +83,7 @@ DEFAULTS_BY_TARGET: Dict[str, Dict[str, Any]] = {
         "subtitle_stroke_color": (0, 0, 0, 210),
         "subtitle_stroke_width": 2,
         "subtitle_font_size": 48,
+        "subtitle_strip_trailing_punctuation": True,
     },
 }
 
@@ -111,7 +118,7 @@ class RenderedVideoAdapter(OutputAdapter):
         output_path = output_dir / output_name
         subtitles_path = output_dir / f"{output_path.stem}.srt"
 
-        if self.effective_config.get("emit_sidecar_srt", False):
+        if self._sidecar_srt_enabled():
             self._write_srt(subtitles_path, timeline.subtitles)
 
         if dry_run:
@@ -154,6 +161,7 @@ class RenderedVideoAdapter(OutputAdapter):
             audio_path=audio_output_path,
             output_path=output_path,
         )
+        self._validate_rendered_output(output_path)
 
         return AdapterResult(
             target=self.target_name,
@@ -435,6 +443,11 @@ class RenderedVideoAdapter(OutputAdapter):
     def _burn_subtitles_enabled(self) -> bool:
         return bool(self.effective_config.get("burn_subtitles", False))
 
+    def _sidecar_srt_enabled(self) -> bool:
+        return bool(self.effective_config.get("allow_sidecar_srt", False)) and bool(
+            self.effective_config.get("emit_sidecar_srt", False)
+        )
+
     def _transition_mode(self) -> str:
         return str(self.effective_config.get("transition_mode", "fade")).strip().lower()
 
@@ -616,7 +629,8 @@ class RenderedVideoAdapter(OutputAdapter):
         Image, ImageDraw, _ = self._load_pillow_modules()
         image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
         draw = ImageDraw.Draw(image)
-        lines, font = self._build_subtitle_lines(text=text, width=width)
+        subtitle_text = self._clean_subtitle_text(text)
+        lines, font = self._build_subtitle_lines(text=subtitle_text, width=width)
         if not lines:
             image.save(output_path)
             return
@@ -667,17 +681,17 @@ class RenderedVideoAdapter(OutputAdapter):
         image.save(output_path)
 
     def _build_subtitle_lines(self, *, text: str, width: int) -> Tuple[List[str], Any]:
-        normalized = " ".join(str(text).split())
+        normalized = self._clean_subtitle_text(" ".join(str(text).split()))
         if not normalized:
             return [], self._load_subtitle_font(int(self.effective_config.get("subtitle_font_size", 58)))
 
         base_size = int(self.effective_config.get("subtitle_font_size", 58))
-        font = self._load_subtitle_font(base_size)
+        font = self._load_subtitle_font(base_size, require_cjk=self._contains_cjk(normalized))
         target_width = int(width * 0.78)
         lines = self._wrap_subtitle_text(normalized, font=font, max_width=target_width)
         while len(lines) > 3 and base_size > 30:
             base_size -= 4
-            font = self._load_subtitle_font(base_size)
+            font = self._load_subtitle_font(base_size, require_cjk=self._contains_cjk(normalized))
             lines = self._wrap_subtitle_text(normalized, font=font, max_width=target_width)
         return lines, font
 
@@ -723,17 +737,27 @@ class RenderedVideoAdapter(OutputAdapter):
             tokens.append(buffer)
         return tokens
 
-    def _load_subtitle_font(self, size: int) -> Any:
+    def _load_subtitle_font(self, size: int, *, require_cjk: bool = False) -> Any:
         _, _, ImageFont = self._load_pillow_modules()
         configured = str(self.effective_config.get("subtitle_font_path", "")).strip()
+        env_configured = str(os.environ.get("VIDEO_DIRECTOR_SUBTITLE_FONT", "")).strip()
         candidates = [
             configured,
+            env_configured,
+            "C:/Windows/Fonts/msyh.ttc",
+            "C:/Windows/Fonts/msyhbd.ttc",
+            "C:/Windows/Fonts/simhei.ttf",
+            "C:/Windows/Fonts/simsun.ttc",
+            "C:/Windows/Fonts/Deng.ttf",
+            "C:/Windows/Fonts/Dengb.ttf",
             "/System/Library/Fonts/PingFang.ttc",
             "/System/Library/Fonts/Hiragino Sans GB.ttc",
             "/System/Library/Fonts/STHeiti Light.ttc",
             "/Library/Fonts/Arial Unicode.ttf",
+            "/Library/Fonts/SourceHanSansSC-Regular.otf",
             "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
             "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+            "/usr/share/fonts/truetype/arphic/ukai.ttc",
         ]
         for candidate in candidates:
             if not candidate:
@@ -741,6 +765,11 @@ class RenderedVideoAdapter(OutputAdapter):
             path = Path(candidate).expanduser()
             if path.is_file():
                 return ImageFont.truetype(str(path), size=size)
+        if require_cjk:
+            raise RenderAdapterError(
+                "Chinese subtitle burn-in needs a CJK-capable font; set "
+                "outputs.final_render.subtitle_font_path or VIDEO_DIRECTOR_SUBTITLE_FONT"
+            )
         return ImageFont.load_default()
 
     @staticmethod
@@ -765,7 +794,7 @@ class RenderedVideoAdapter(OutputAdapter):
     def _write_srt(self, output_path: Path, subtitles: Iterable[Any]) -> None:
         entries: List[str] = []
         for index, cue in enumerate(subtitles, start=1):
-            text = str(getattr(cue, "text", "")).strip()
+            text = self._clean_subtitle_text(getattr(cue, "text", ""))
             if not text:
                 continue
             start_ms = int(getattr(cue, "start_ms", 0) or 0)
@@ -777,6 +806,42 @@ class RenderedVideoAdapter(OutputAdapter):
             )
         if entries:
             output_path.write_text("\n".join(entries), encoding="utf-8")
+
+    def _clean_subtitle_text(self, text: Any) -> str:
+        normalized = re.sub(r"\s+", " ", str(text or "")).strip()
+        if bool(self.effective_config.get("subtitle_strip_trailing_punctuation", True)):
+            normalized = normalized.rstrip(TRAILING_SUBTITLE_PUNCTUATION).strip()
+        return normalized
+
+    @staticmethod
+    def _contains_cjk(text: str) -> bool:
+        return any("\u4e00" <= char <= "\u9fff" for char in str(text or ""))
+
+    def _validate_rendered_output(self, output_path: Path) -> None:
+        if not output_path.is_file() or output_path.stat().st_size <= 0:
+            raise RenderAdapterError(f"rendered video was not created: {output_path}")
+        ffprobe_bin = str(self.effective_config.get("ffprobe_bin", "ffprobe")).strip() or "ffprobe"
+        if not shutil.which(ffprobe_bin):
+            return
+        result = subprocess.run(
+            [
+                ffprobe_bin,
+                "-v",
+                "error",
+                "-select_streams",
+                "v:0",
+                "-show_entries",
+                "stream=codec_type",
+                "-of",
+                "csv=p=0",
+                str(output_path),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0 or "video" not in result.stdout:
+            raise RenderAdapterError(f"rendered output has no video stream: {output_path}")
 
     @staticmethod
     def _format_srt_time(value_ms: int) -> str:

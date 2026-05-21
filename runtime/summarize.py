@@ -29,8 +29,9 @@ def _resolve_paths(source: Path) -> Tuple[Path, Path, str]:
     payload = _read_json(source)
     if "job_root" in payload and "output_root" in payload:
         return Path(payload["job_root"]), Path(payload["output_root"]), str(payload.get("run_id", ""))
-    if "output_root" in payload and "job_root" in payload:
-        return Path(payload["job_root"]), Path(payload["output_root"]), str(payload.get("run_id", ""))
+    internal = payload.get("internal")
+    if isinstance(internal, dict) and "job_root" in internal and "output_root" in internal:
+        return Path(internal["job_root"]), Path(internal["output_root"]), str(payload.get("run_id", ""))
     raise ValueError(f"unsupported json input: {source}")
 
 
@@ -58,6 +59,27 @@ def _load_targets(targets_root: Path) -> List[Dict[str, Any]]:
     return results
 
 
+def _public_deliverables(targets_root: Path) -> List[Dict[str, Any]]:
+    if not targets_root.is_dir():
+        return []
+    deliverables: List[Dict[str, Any]] = []
+    for target_dir in sorted(targets_root.iterdir()):
+        if not target_dir.is_dir():
+            continue
+        for path in sorted(target_dir.iterdir()):
+            if not path.is_file() or path.suffix.lower() not in {".mp4", ".mov", ".m4v"}:
+                continue
+            deliverables.append(
+                {
+                    "target": target_dir.name,
+                    "type": "video",
+                    "path": str(path),
+                    "size_bytes": path.stat().st_size,
+                }
+            )
+    return deliverables
+
+
 def _beat_count(path: Path) -> Optional[int]:
     if not path.is_file():
         return None
@@ -66,37 +88,45 @@ def _beat_count(path: Path) -> Optional[int]:
     return len(beats) if isinstance(beats, list) else None
 
 
-def summarize_run(source: Path) -> Dict[str, Any]:
+def summarize_run(source: Path, *, verbose: bool = False) -> Dict[str, Any]:
     resolved_source = source.expanduser().resolve()
     job_root, output_root, run_id = _resolve_paths(resolved_source)
     beat_sheet_path = output_root / "BeatSheet.json"
-    return {
-        "job_root": str(job_root),
-        "output_root": str(output_root),
+    targets_root = output_root / "targets"
+    payload: Dict[str, Any] = {
         "run_id": run_id,
-        "artifacts": {
-            "latest_run": _artifact(job_root / "latest_run.json"),
-            "config_snapshot": _artifact(output_root / "config.snapshot.json"),
-            "production_bundle": _artifact(output_root / "Production_Bundle.json"),
-            "beat_sheet": _artifact(beat_sheet_path),
-            "edl": _artifact(output_root / "Edit_Decision_List.json"),
-            "timeline": _artifact(output_root / "Timeline_Model.json"),
-            "remote_manifest": _artifact(job_root / "Remote_Run_Manifest.json"),
-        },
+        "deliverables": _public_deliverables(targets_root),
         "beat_count": _beat_count(beat_sheet_path),
-        "targets": _load_targets(output_root / "targets"),
     }
+    payload["status"] = "rendered" if payload["deliverables"] else "no_public_deliverable"
+    if verbose:
+        payload["internal"] = {
+            "job_root": str(job_root),
+            "output_root": str(output_root),
+            "artifacts": {
+                "latest_run": _artifact(job_root / "latest_run.json"),
+                "config_snapshot": _artifact(output_root / "config.snapshot.json"),
+                "production_bundle": _artifact(output_root / "Production_Bundle.json"),
+                "beat_sheet": _artifact(beat_sheet_path),
+                "edl": _artifact(output_root / "Edit_Decision_List.json"),
+                "timeline": _artifact(output_root / "Timeline_Model.json"),
+                "remote_manifest": _artifact(job_root / "Remote_Run_Manifest.json"),
+            },
+            "targets": _load_targets(targets_root),
+        }
+    return payload
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Summarize a Video Director run")
     parser.add_argument("source", help="path to latest_run.json or a workflow result json")
+    parser.add_argument("--verbose", action="store_true", help="include internal debug artifacts")
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    summary = summarize_run(Path(args.source))
+    summary = summarize_run(Path(args.source), verbose=bool(args.verbose))
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     return 0
 

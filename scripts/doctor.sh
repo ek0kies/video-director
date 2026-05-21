@@ -154,7 +154,7 @@ if [[ -n "${PYTHON_CMD}" && -f "${CONFIG_PATH}" ]]; then
   fi
 elif [[ ! -f "${CONFIG_PATH}" ]]; then
   fail "config not found: ${CONFIG_PATH}"
-  printf 'FIX config:\n  bash %q config local --output-mode video --output video-director.video.local.json --job-id demo --narration-text smoke\n' "${SCRIPT_DIR}/run.sh"
+  printf 'FIX config:\n  bash %q config local --output-mode video --output .video-director/configs/video-director.video.local.json --job-id demo --narration-text smoke\n' "${SCRIPT_DIR}/run.sh"
 fi
 
 if [[ "${FAIL_COUNT}" -eq 0 ]]; then

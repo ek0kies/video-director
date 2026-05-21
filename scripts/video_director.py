@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Iterable, List, Optional, Sequence, Tuple
 
@@ -99,11 +100,22 @@ def _default_config_output(mode: str, output_mode: str, workspace_root: Path) ->
         name = "video-director.cloud.video.local.json" if output_mode == "video" else "video-director.cloud.local.json"
     else:
         name = "video-director.video.local.json" if output_mode == "video" else "video-director.draft.local.json"
-    return workspace_root / name
+    return _workspace_internal_root(workspace_root) / "configs" / name
 
 
 def _workspace_root() -> Path:
     return Path(os.environ.get("VIDEO_DIRECTOR_WORKSPACE_ROOT", str(Path.cwd()))).expanduser().resolve()
+
+
+def _workspace_internal_root(workspace_root: Path) -> Path:
+    return Path(os.environ.get("VIDEO_DIRECTOR_WORK_DIR", str(workspace_root / ".video-director"))).expanduser().resolve()
+
+
+def _default_demo_root() -> Path:
+    raw = os.environ.get("VIDEO_DIRECTOR_DEMO_ROOT")
+    if raw:
+        return Path(raw).expanduser().resolve()
+    return Path(tempfile.mkdtemp(prefix="video-director-demo-")).resolve() / "contest"
 
 
 def _cmd_analyze(args: Sequence[str]) -> int:
@@ -112,12 +124,16 @@ def _cmd_analyze(args: Sequence[str]) -> int:
     parser.add_argument("--output", required=True, help="manifest JSON output path")
     parser.add_argument("--limit", type=int, default=0, help="optional max assets to analyze")
     parsed = parser.parse_args(args)
+    workspace_root = _workspace_root()
+    output_path = Path(parsed.output).expanduser()
+    if not output_path.is_absolute():
+        output_path = (workspace_root / output_path).resolve()
 
     try:
         payload = build_assets_manifest(
             materials_dir=Path(parsed.materials_dir).expanduser(),
-            cwd=_skill_root(),
-            output_path=Path(parsed.output).expanduser(),
+            cwd=workspace_root,
+            output_path=output_path,
             limit=max(int(parsed.limit or 0), 0),
         )
     except (AssetAnalysisError, OSError, ValueError) as exc:
@@ -127,7 +143,7 @@ def _cmd_analyze(args: Sequence[str]) -> int:
         json.dumps(
             {
                 "skill_root": str(_skill_root()),
-                "output": str(Path(parsed.output).expanduser().resolve()),
+                "output": str(output_path),
                 "generated_by": "analyze_assets:filename_heuristic",
                 "asset_count": len(payload.get("assets", [])),
             },
@@ -193,7 +209,7 @@ def _cmd_run(args: Sequence[str]) -> int:
     workflow = VideoDirectorWorkflow(_read_json(config_path), cwd=workspace_root, dry_run=bool(parsed.dry_run))
     try:
         result = workflow.run()
-    except ProductionConfigError as exc:
+    except RuntimeError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -231,9 +247,11 @@ def _cmd_review_copy(args: Sequence[str]) -> int:
 
 
 def _cmd_summarize(args: Sequence[str]) -> int:
-    if not args:
-        raise SystemExit("usage: video_director.py summarize <latest_run.json|run-dir>")
-    print(json.dumps(summarize_run(Path(args[0])), ensure_ascii=False, indent=2))
+    parser = argparse.ArgumentParser(description="Summarize a Video Director run")
+    parser.add_argument("source", help="path to latest_run.json or run directory")
+    parser.add_argument("--verbose", action="store_true", help="include internal debug artifacts")
+    parsed = parser.parse_args(args)
+    print(json.dumps(summarize_run(Path(parsed.source), verbose=bool(parsed.verbose)), ensure_ascii=False, indent=2))
     return 0
 
 
@@ -251,7 +269,7 @@ def _cmd_demo(args: Sequence[str]) -> int:
     if args:
         raise SystemExit("usage: video_director.py demo")
     _require_ffmpeg()
-    demo_root = Path(os.environ.get("VIDEO_DIRECTOR_DEMO_ROOT", str(_skill_root() / "demo" / "contest"))).expanduser().resolve()
+    demo_root = _default_demo_root()
     materials_dir = demo_root / "materials"
     output_root = demo_root / "output"
     manifest_path = demo_root / "assets_manifest.json"
@@ -350,7 +368,7 @@ commands:
   review-copy  Build a viewer-facing copy review report
   doctor     Check runtime prerequisites
   run        Dry-run or render the pipeline
-  summarize  Summarize a run
+  summarize  Summarize a run; pass --verbose for internal artifacts
   demo       Generate contest demo assets and config
 """
 

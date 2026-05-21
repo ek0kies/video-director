@@ -21,13 +21,17 @@ avatar generation, or editable-draft adapters.
 - Ask users for intent, source media location, output preference, narration or
   style requirements, and only the missing credentials/paths required by the
   selected optional path.
-- For simple requests such as "cut a 30 second video from this folder", state
-  the default editing assumptions before rendering: direct mp4, keep source
-  audio, no TTS, no external music, and no burned subtitles unless viewer-facing
-  narration or copy is provided or requested.
+- For simple requests such as "cut a 30 second video from this folder", present
+  a natural default path before rendering: a clean edit as a direct mp4 with
+  source audio retained and no extra voiceover, subtitles, or BGM.
+- In the same short confirmation, mention the optional narration path in plain
+  language: if the user wants a narrated version, the Agent can draft narration
+  copy and subtitles for review before rendering.
 - Do not turn the default assumptions into a long form. Ask only for the choices
   that materially change the output: TTS or voiceover, burned subtitles, source
   audio retention, external music, and editable draft export.
+- Do not frame missing narration or copy as the user's fault; describe the
+  default as a "clean edit" instead.
 - If the user asks to proceed quickly or accepts the assumptions, continue with
   those defaults without asking again.
 - Generate local `*.local.json` configs yourself from `runtime/templates/`.
@@ -83,8 +87,9 @@ Before generating config, apply this clarification gate:
   output mode, and duration, use those choices directly.
 - If the request only specifies source media and duration, present one concise
   assumption line and wait for confirmation before rendering:
-  "I will make a direct mp4, keep source audio, add no TTS, add no external
-  music, and burn no subtitles because no viewer-facing copy was provided."
+  "I will start with a clean edit: a direct mp4 with the original audio, without
+  extra voiceover, subtitles, or BGM. If you want a narrated version, I can
+  draft narration copy and subtitles for your review first."
 - If the user requested generated copy, create the review report before
   rendering. Do not treat generated subtitles as approved copy.
 - If the user requested TTS, avatar, cloud delivery, or editable draft export,

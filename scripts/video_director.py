@@ -171,7 +171,7 @@ def _cmd_config(args: Sequence[str]) -> int:
 
     parsed = parse_config_args(["--mode", mode, "--output", str(output_path), *remaining])
     try:
-        result = prepare_config(parsed, skill_root=_skill_root())
+        result = prepare_config(parsed, skill_root=_skill_root(), cwd=workspace_root)
     except (FileNotFoundError, ValueError, RuntimeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -332,7 +332,7 @@ def _cmd_demo(args: Sequence[str]) -> int:
         "--output-root",
         str(output_root),
         "--set",
-        f'production.assets_manifest_path="{manifest_path}"',
+        f"production.assets_manifest_path={manifest_path}",
         "--set",
         'outputs.final_render.output_name="contest-demo.mp4"',
         "--set",
@@ -342,7 +342,7 @@ def _cmd_demo(args: Sequence[str]) -> int:
     ]
     from runtime.config_prepare import parse_args as parse_config_args
 
-    prepare_config(parse_config_args(config_args), skill_root=_skill_root())
+    prepare_config(parse_config_args(config_args), skill_root=_skill_root(), cwd=demo_root)
 
     print("Demo assets ready.")
     print(f"config: {config_path}")

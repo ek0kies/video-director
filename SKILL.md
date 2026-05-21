@@ -259,7 +259,7 @@ bash scripts/run.sh config local \
   --job-id demo-video \
   --narration-text "Viewer-facing narration and subtitles go here." \
   --director-brief "Private editing guidance goes here." \
-  --set production.assets_manifest_path='"/path/to/workspace/.video-director/assets_manifest.json"' \
+  --set production.assets_manifest_path=/path/to/workspace/.video-director/assets_manifest.json \
   --set production.full_tts_duration_ms=30000 \
   --set outputs.final_render.output_name='"demo-video.mp4"'
 ```
@@ -289,7 +289,7 @@ bash scripts/run.sh config local \
   --output /path/to/workspace/.video-director/configs/video-director.draft.local.json \
   --job-id demo-draft \
   --narration-text "Viewer-facing narration and subtitles go here." \
-  --set production.assets_manifest_path='"/path/to/workspace/.video-director/assets_manifest.json"'
+  --set production.assets_manifest_path=/path/to/workspace/.video-director/assets_manifest.json
 ```
 
 If the current environment is unsupported for the selected draft adapter, stop

@@ -69,7 +69,14 @@ def _parse_scalar(raw: str) -> Any:
         return text
 
 
-def _read_script_text(args: argparse.Namespace) -> Optional[str]:
+def _resolve_user_path(raw: str, cwd: Path) -> Path:
+    path = Path(raw).expanduser()
+    if not path.is_absolute():
+        path = (cwd / path).resolve()
+    return path
+
+
+def _read_script_text(args: argparse.Namespace, *, cwd: Path) -> Optional[str]:
     provided = [
         bool(args.script_text),
         bool(args.script_file),
@@ -86,15 +93,15 @@ def _read_script_text(args: argparse.Namespace) -> Optional[str]:
     if args.generated_narration_text:
         return args.generated_narration_text
     if args.generated_narration_file:
-        return Path(args.generated_narration_file).expanduser().read_text(encoding="utf-8")
+        return _resolve_user_path(args.generated_narration_file, cwd).read_text(encoding="utf-8")
     if args.narration_text:
         return args.narration_text
     if args.narration_file:
-        return Path(args.narration_file).expanduser().read_text(encoding="utf-8")
+        return _resolve_user_path(args.narration_file, cwd).read_text(encoding="utf-8")
     if args.script_text:
         return args.script_text
     if args.script_file:
-        return Path(args.script_file).expanduser().read_text(encoding="utf-8")
+        return _resolve_user_path(args.script_file, cwd).read_text(encoding="utf-8")
     return None
 
 
@@ -247,15 +254,16 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def prepare_config(args: argparse.Namespace, *, skill_root: Optional[Path] = None) -> Dict[str, str]:
+def prepare_config(args: argparse.Namespace, *, skill_root: Optional[Path] = None, cwd: Optional[Path] = None) -> Dict[str, str]:
     root = skill_root or skill_root_from_runtime()
+    workspace_root = (cwd or Path.cwd()).expanduser().resolve()
     default_template = DRAFT_TEMPLATE if args.output_mode == OUTPUT_MODE_DRAFT and args.mode == "local" else TEMPLATE_BY_MODE[args.mode]
     template_path = Path(args.template).expanduser() if args.template else root / default_template
     if not template_path.is_file():
         raise FileNotFoundError(f"template does not exist: {template_path}")
 
     payload = _read_json(template_path)
-    script_text = _read_script_text(args)
+    script_text = _read_script_text(args, cwd=workspace_root)
     _apply_output_mode(payload, runtime_mode=args.mode, output_mode=args.output_mode)
 
     if args.job_id:

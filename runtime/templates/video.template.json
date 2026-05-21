@@ -6,6 +6,26 @@
     "director_brief": "Use local B-roll as the primary visual track and render a directly playable vertical mp4."
   },
   "production": {
+    "enable_tts_generation": false,
+    "tts": {
+      "provider": "doubao_tts2_v3_http_chunked",
+      "_note": "豆包普通语音合成默认使用 seed-tts-2.0，默认音色为 zh_male_jieshuoxiaoming_uranus_bigtts；seed-icl-2.0 是声音复刻，不用于普通 TTS。",
+      "endpoint": "https://openspeech.bytedance.com/api/v3/tts/unidirectional",
+      "api_key": "",
+      "resource_id": "seed-tts-2.0",
+      "output_file_name": "tts.wav",
+      "speaker_id": "zh_male_jieshuoxiaoming_uranus_bigtts",
+      "payload_template": {
+        "request_id": "{{request_id}}",
+        "req_params": {
+          "speaker": "{{speaker_id}}",
+          "text": "{{script_text}}",
+          "audio_params": {
+            "format": "wav"
+          }
+        }
+      }
+    },
     "full_tts_audio_path": "",
     "full_tts_duration_ms": 12000,
     "understanding": {

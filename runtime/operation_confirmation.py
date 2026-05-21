@@ -161,10 +161,10 @@ def build_operation_summary(config: Dict[str, Any]) -> Dict[str, Any]:
             "adapter": "jianying" if "jianying_draft" in targets else "",
             "drafts_root": str(jianying.get("drafts_root") or "").strip(),
         },
-        "cloud": {
-            "enabled": str(production.get("mode") or "").strip().lower() == "cloud",
-            "tts_enabled": bool(production.get("enable_tts_generation", False)),
-            "avatar_enabled": bool(production.get("enable_avatar_generation", False)),
+        "tts": {
+            "enabled": bool(production.get("enable_tts_generation", False)),
+            "provider": str(production.get("tts", {}).get("provider", "")) if isinstance(production.get("tts"), dict) else "",
+            "speaker_id": str(production.get("tts", {}).get("speaker_id", "")) if isinstance(production.get("tts"), dict) else "",
         },
     }
 

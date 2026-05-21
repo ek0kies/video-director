@@ -117,9 +117,28 @@ powershell -ExecutionPolicy Bypass -File scripts\run.ps1 update -Help
 - If the user asks for voiceover, dubbing, or TTS, do not stop at checking local
   speech capabilities. Present the available paths: use a user-provided audio
   file, generate and review narration text for manual recording, or use the
-  optional cloud TTS path. The bundled cloud template includes Doubao TTS
-  (`doubao_tts2_v3_http_chunked`), which requires explicit user selection and
-  credentials.
+  optional TTS path. The bundled `video` and `draft` templates include Doubao
+  TTS (`doubao_tts2_v3_http_chunked`), which requires explicit user selection
+  and credentials.
+- For Doubao TTS 2.0 voice synthesis, ask only for the missing voice synthesis
+  inputs: a Volcengine API Key (`DOUBAO_TTS_API_KEY` or `tts.api_key`) and the
+  selected `speaker_id`. Treat `endpoint`, `resource_id=seed-tts-2.0`, and
+  `speaker_id=zh_male_jieshuoxiaoming_uranus_bigtts` as built-in defaults
+  unless the user explicitly overrides them. Do not ask for `DOUBAO_APP_ID`,
+  `DOUBAO_ACCESS_TOKEN`, `DOUBAO_CLUSTER`, or `DOUBAO_VOICE_TYPE`; those are
+  old or mismatched fields for this path.
+- When showing Doubao TTS configuration to a user, include this Chinese note:
+  "豆包普通语音合成默认使用 seed-tts-2.0，默认音色为
+  zh_male_jieshuoxiaoming_uranus_bigtts；seed-icl-2.0 是声音复刻，不用于普通
+  TTS。"
+- The current Skill configuration surface only requires TTS configuration when
+  the user selects generated voiceover. TTS is an optional audio capability of
+  both `video` and `draft`; do not require `--mode cloud` for TTS. Do not ask
+  for avatar, voice clone, audio delivery, generic cloud API, object storage,
+  or token/bearer API settings unless a future task explicitly reintroduces
+  that capability.
+- Do not use Doubao voice clone resources such as `seed-icl-2.0` for ordinary
+  TTS. Voice clone is a separate optional path and must be selected explicitly.
 - Do not frame missing narration or copy as the user's fault; describe the
   default as a "clean edit" instead.
 - If the user asks to proceed quickly or accepts the assumptions, continue with
@@ -274,9 +293,8 @@ Before generating config, apply this clarification gate:
   draft copy within that plan's duration and material constraints, then create
   the review report before rendering. Do not treat generated subtitles as
   approved copy.
-- If the user requested TTS, avatar, cloud delivery, or editable draft export,
-  ask only for the credentials, paths, or adapter constraints required by that
-  selected path.
+- If the user requested TTS or editable draft export, ask only for the
+  credentials, paths, or adapter constraints required by that selected path.
 - If the user requested voiceover but did not choose a path, ask one concise
   question that names the meaningful choices: provided audio, generated copy for
   review, or optional Doubao TTS.

@@ -79,7 +79,7 @@ class VideoDirectorWorkflow:
         self._validate_visual_timeline(kernel_output)
         remote_manifest_path = ""
 
-        if self._use_cloud_production():
+        if self._use_remote_production():
             _write_json(output_root / "Production_Bundle.initial.json", to_dict(bundle))
             generator = CloudProductionGenerator(
                 self.config["production"],
@@ -135,6 +135,12 @@ class VideoDirectorWorkflow:
     def _use_cloud_production(self) -> bool:
         production = self.config.get("production", {})
         return isinstance(production, dict) and str(production.get("mode", "config")).strip().lower() == "cloud"
+
+    def _use_remote_production(self) -> bool:
+        production = self.config.get("production", {})
+        if not isinstance(production, dict):
+            return False
+        return self._use_cloud_production() or bool(production.get("enable_tts_generation", False))
 
     def _should_preserve_cloud_avatar_beats(self) -> bool:
         production = self.config.get("production", {})

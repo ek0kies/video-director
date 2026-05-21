@@ -54,7 +54,9 @@ verification result.
 - Builds a narration-first beat sheet, edit decision list, and timeline model.
 - Renders a vertical mp4 through ffmpeg.
 - Burns subtitles by default.
-- Keeps cloud generation, TTS, avatar, and adapter-specific draft export optional.
+- Keeps TTS optional and explicit for both final mp4 and editable draft outputs.
+  The current Skill config surface only asks for TTS credentials when that path
+  is selected.
 - For voiceover requests, supports user-provided audio, generated copy for
   manual recording, or explicitly selected Doubao TTS credentials.
 - Treats the final mp4 as the default user deliverable. Manifests, config

@@ -14,7 +14,7 @@ from typing import Any, Iterable, List, Optional, Sequence, Tuple
 
 
 REQUIRED_PYTHON = (3, 10)
-MODES = {"bundle_only", "local", "cloud"}
+MODES = {"bundle_only", "local"}
 
 
 def _script_root() -> Path:
@@ -103,8 +103,6 @@ def _output_mode(args: Iterable[str]) -> str:
 def _default_config_output(mode: str, output_mode: str, workspace_root: Path) -> Path:
     if mode == "bundle_only":
         name = "video-director.bundle.video.local.json" if output_mode == "video" else "video-director.bundle.local.json"
-    elif mode == "cloud":
-        name = "video-director.cloud.video.local.json" if output_mode == "video" else "video-director.cloud.local.json"
     else:
         name = "video-director.video.local.json" if output_mode == "video" else "video-director.draft.local.json"
     return _workspace_internal_root(workspace_root) / "configs" / name

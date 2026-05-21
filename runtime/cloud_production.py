@@ -28,7 +28,7 @@ from .retrying import RetryExhaustedError, RetryPolicy, call_with_retry
 
 DEFAULT_CN_CHARS_PER_SECOND = 4.0
 DOUBAO_TTS2_ENDPOINT = "https://openspeech.bytedance.com/api/v3/tts/unidirectional"
-DOUBAO_TTS2_RESOURCE_ID = "seed-icl-2.0"
+DOUBAO_TTS2_RESOURCE_ID = "seed-tts-2.0"
 VOLATILE_FINGERPRINT_KEYS = {"request_id", "requestid", "timestamp", "nonce", "expires", "updated_at", "created_at"}
 
 
@@ -184,7 +184,11 @@ class CloudProductionGenerator:
         self.max_poll_attempts = int(config.get("max_poll_attempts", 120))
         self.estimated_chars_per_second = float(config.get("estimated_chars_per_second", DEFAULT_CN_CHARS_PER_SECOND))
         self.retry_policy = RetryPolicy.from_config(config.get("retry_policy", {}))
-        self.client = HttpClient(config["api"], dry_run=dry_run, retry_policy=self.retry_policy)
+        api_cfg = config.get("api") if isinstance(config.get("api"), dict) else None
+        self.timeout_seconds = int(config.get("timeout_seconds", (api_cfg or {}).get("timeout_seconds", 30)))
+        self.client: Optional[HttpClient] = (
+            HttpClient(api_cfg, dry_run=dry_run, retry_policy=self.retry_policy) if api_cfg else None
+        )
         checkpoint_cfg = config.get("checkpointing", {}) if isinstance(config.get("checkpointing"), dict) else {}
         manifest_name = str(checkpoint_cfg.get("manifest_name", "Remote_Run_Manifest.json")).strip() or "Remote_Run_Manifest.json"
         self.manifest_path = self.manifest_root / manifest_name
@@ -203,7 +207,7 @@ class CloudProductionGenerator:
         avatar_clips: List[AvatarClip] = []
 
         enable_tts = bool(self.config.get("enable_tts_generation", True))
-        enable_avatar = bool(self.config.get("enable_avatar_generation", True))
+        enable_avatar = bool(self.config.get("enable_avatar_generation", False))
         if enable_avatar and not enable_tts:
             raise CloudProductionError("production.enable_tts_generation=false 时不能启用 enable_avatar_generation")
 
@@ -1117,7 +1121,7 @@ class CloudProductionGenerator:
         }
         api_key = str(tts_cfg.get("api_key", "")).strip() or os.getenv("DOUBAO_TTS_API_KEY", "").strip()
         if not api_key:
-            raise CloudProductionError("doubao tts requires api_key")
+            raise CloudProductionError("doubao tts requires tts.api_key or DOUBAO_TTS_API_KEY")
         headers["X-Api-Key"] = api_key
         request_id = str(payload.get("request_id", uuid.uuid4()))
         headers["X-Api-Request-Id"] = request_id
@@ -1130,7 +1134,7 @@ class CloudProductionGenerator:
         )
         def _request_once(_: int) -> None:
             try:
-                with urllib.request.urlopen(req, timeout=self.client.timeout) as resp:
+                with urllib.request.urlopen(req, timeout=self.timeout_seconds) as resp:
                     content_type = (resp.headers.get("Content-Type") or "").lower()
                     if "application/json" in content_type or "text/plain" in content_type:
                         raw = resp.read().decode("utf-8", errors="ignore")
@@ -1276,6 +1280,8 @@ class CloudProductionGenerator:
         return parsed.scheme in {"http", "https"}
 
     def _trigger_and_poll(self, stage: str, stage_cfg: Dict[str, Any], payload: Dict[str, Any]) -> TaskResult:
+        if self.client is None:
+            raise CloudProductionError(f"{stage} requires production.api configuration")
         trigger_cfg = stage_cfg["trigger"]
         status_cfg = stage_cfg["status"]
         trigger_resp = self.client.request(trigger_cfg.get("method", "POST"), trigger_cfg["path"], payload)

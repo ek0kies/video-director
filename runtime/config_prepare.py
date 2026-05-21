@@ -16,7 +16,6 @@ from runtime.operation_confirmation import apply_operation_confirmation
 TEMPLATE_BY_MODE = {
     "bundle_only": "runtime/templates/video.template.json",
     "local": "runtime/templates/video.template.json",
-    "cloud": "runtime/templates/cloud.template.json",
 }
 DRAFT_TEMPLATE = "runtime/templates/draft.template.json"
 
@@ -125,11 +124,15 @@ def _disable_default_avatar(payload: Dict[str, Any]) -> None:
     inputs.pop("avatar_path", None)
     inputs.pop("avatar_image_path", None)
     production.pop("avatar_clips", None)
-    production["enable_avatar_generation"] = False
-    editing["enable_avatar_timeline"] = False
-    editing["avatar_opening_segments"] = 0
-    editing["avatar_middle_segments"] = 0
-    editing["avatar_ending_segments"] = 0
+    production.pop("enable_avatar_generation", None)
+    if "enable_avatar_timeline" in editing:
+        editing["enable_avatar_timeline"] = False
+    if "avatar_opening_segments" in editing:
+        editing["avatar_opening_segments"] = 0
+    if "avatar_middle_segments" in editing:
+        editing["avatar_middle_segments"] = 0
+    if "avatar_ending_segments" in editing:
+        editing["avatar_ending_segments"] = 0
 
 
 def _resolve_narration_source(args: argparse.Namespace, script_text: Optional[str]) -> str:
@@ -234,6 +237,9 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--avatar-image-path", help="override inputs.avatar_image_path")
     parser.add_argument("--full-tts-audio-path", help="override production.full_tts_audio_path")
     parser.add_argument("--full-tts-duration-ms", type=int, help="override production.full_tts_duration_ms")
+    parser.add_argument("--enable-tts-generation", choices=("true", "false"), help="enable optional TTS generation")
+    parser.add_argument("--tts-api-key", help="override production.tts.api_key")
+    parser.add_argument("--tts-speaker-id", help="override production.tts.speaker_id")
     parser.add_argument("--drafts-root", help="override outputs.jianying.drafts_root")
     parser.add_argument("--output-root", help="override outputs.output_root")
     parser.add_argument(
@@ -304,6 +310,13 @@ def prepare_config(args: argparse.Namespace, *, skill_root: Optional[Path] = Non
         production["full_tts_audio_path"] = args.full_tts_audio_path
     if args.full_tts_duration_ms is not None:
         production["full_tts_duration_ms"] = args.full_tts_duration_ms
+    if args.enable_tts_generation is not None:
+        production["enable_tts_generation"] = args.enable_tts_generation == "true"
+    tts = production.setdefault("tts", {})
+    if args.tts_api_key:
+        tts["api_key"] = args.tts_api_key
+    if args.tts_speaker_id:
+        tts["speaker_id"] = args.tts_speaker_id
     if args.drafts_root:
         jianying["drafts_root"] = args.drafts_root
     if args.output_root:

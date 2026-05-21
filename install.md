@@ -281,6 +281,8 @@ Tell the user:
 - Which agent skill directory was registered.
 - That a good first request is: "Use video-director to inventory these media
   files, propose a short-video strategy, and render an mp4 after I approve it."
+- That Video Director now stores an operation-parameter summary in generated
+  configs and refuses to run until the user has confirmed those parameters.
 - That the default contest-safe path is local mp4 rendering; cloud/TTS/avatar
   and adapter-specific draft export are optional follow-ups.
 - That routine generated files live under the workspace/internal output tree,

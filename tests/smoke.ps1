@@ -19,6 +19,17 @@ try {
     & (Join-Path $SkillRoot "scripts\doctor.ps1") (Join-Path $SkillRoot "runtime\templates\video.template.json")
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+    $PendingConfig = Join-Path $SmokeBase "operation-confirmation.pending.local.json"
+    & (Join-Path $SkillRoot "scripts\run.ps1") config local --output-mode video --output $PendingConfig --job-id operation-confirmation-pending --narration-text smoke
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    & (Join-Path $SkillRoot "scripts\run.ps1") run $PendingConfig --dry-run
+    if ($LASTEXITCODE -eq 0) {
+        Write-Error "STATUS FAIL pending operation confirmation should block run"
+        exit 1
+    }
+    & (Join-Path $SkillRoot "scripts\run.ps1") confirm-operation $PendingConfig --note smoke-confirmed
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
     $env:VIDEO_DIRECTOR_DEMO_ROOT = $DemoRoot
     & (Join-Path $SkillRoot "scripts\run.ps1") demo
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

@@ -14,6 +14,7 @@ from .cloud_production import CloudProductionGenerator
 from .kernel import NarrationFirstEditKernel
 from .material_planning import build_material_copy_plan
 from .models import AdapterResult, KernelOutput, ProductionBundle, to_dict
+from .operation_confirmation import ensure_operation_confirmed
 from .production import ProductionBundleBuilder
 
 
@@ -67,6 +68,7 @@ class VideoDirectorWorkflow:
         self.dry_run = dry_run
 
     def run(self) -> Dict[str, Any]:
+        ensure_operation_confirmed(self.config)
         builder = ProductionBundleBuilder(self.cwd)
         bundle = builder.build(self.config)
         job_root, output_root, run_id = self._resolve_output_layout(bundle)

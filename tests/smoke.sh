@@ -20,6 +20,18 @@ echo "INFO smoke root: ${SMOKE_ROOT}"
 bash "${SKILL_ROOT}/scripts/install.sh" --no-system-install
 bash "${SKILL_ROOT}/scripts/doctor.sh" "${SKILL_ROOT}/runtime/templates/video.template.json"
 
+PENDING_CONFIG="${SMOKE_ROOT}/operation-confirmation.pending.local.json"
+bash "${SKILL_ROOT}/scripts/run.sh" config local \
+  --output-mode video \
+  --output "${PENDING_CONFIG}" \
+  --job-id operation-confirmation-pending \
+  --narration-text smoke
+if bash "${SKILL_ROOT}/scripts/run.sh" run "${PENDING_CONFIG}" --dry-run; then
+  echo "STATUS FAIL pending operation confirmation should block run" >&2
+  exit 1
+fi
+bash "${SKILL_ROOT}/scripts/run.sh" confirm-operation "${PENDING_CONFIG}" --note smoke-confirmed
+
 VIDEO_DIRECTOR_DEMO_ROOT="${DEMO_ROOT}" bash "${SKILL_ROOT}/scripts/run.sh" demo
 bash "${SKILL_ROOT}/scripts/doctor.sh" "${CONFIG_PATH}"
 bash "${SKILL_ROOT}/scripts/run.sh" run "${CONFIG_PATH}" --dry-run

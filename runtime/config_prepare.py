@@ -10,6 +10,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence
 
+from runtime.operation_confirmation import apply_operation_confirmation
+
 
 TEMPLATE_BY_MODE = {
     "bundle_only": "runtime/templates/video.template.json",
@@ -219,6 +221,12 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         action="store_true",
         help="mark generated viewer-facing narration as reviewed and approved",
     )
+    parser.add_argument(
+        "--operation-confirmed",
+        action="store_true",
+        help="mark execution parameters as explicitly confirmed by the user",
+    )
+    parser.add_argument("--operation-note", help="optional note stored with the operation confirmation state")
     parser.add_argument("--director-brief", help="planning guidance that should not be shown as subtitles")
     parser.add_argument("--topic-hint", help="override inputs.topic_hint")
     parser.add_argument("--materials-dir", help="override inputs.materials_dir")
@@ -316,15 +324,26 @@ def prepare_config(args: argparse.Namespace, *, skill_root: Optional[Path] = Non
         output_mode=args.output_mode,
         allow_unsupported_draft_adapter=args.allow_unsupported_draft_adapter,
     )
+    apply_operation_confirmation(
+        payload,
+        approved=bool(args.operation_confirmed),
+        note=str(args.operation_note or "").strip(),
+    )
 
     output_path = Path(args.output).expanduser()
     _write_json(output_path, payload)
+    confirmation = payload["operation_confirmation"]
     return {
         "skill_root": str(root),
         "template": str(template_path),
         "output": str(output_path.resolve()),
         "mode": args.mode,
         "output_mode": args.output_mode,
+        "operation_confirmation": {
+            "status": confirmation["status"],
+            "required": confirmation["required"],
+            "summary": confirmation["summary"],
+        },
     }
 
 

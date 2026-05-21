@@ -79,6 +79,7 @@ scripts\video-director.cmd summarize <latest_run.json>
 
 Unix/macOS 使用 `scripts/video-director.sh`，Windows 使用 `scripts\video-director.cmd`；Agent 也可以用
 `scripts/run.sh update` 或 `scripts\run.ps1 update` 更新已安装的 Git checkout。配置模板是 skill 内部实现细节；正常使用时，Agent 会根据你的请求生成本地配置，只在所选路径缺少必要信息时再询问。
+生成的配置会包含 `operation_confirmation.summary`，Agent 应先把这些执行参数展示给你并等待确认，再开始运行。这个执行确认和自动生成文案审核是两个独立 gate：Agent 写出的旁白或字幕仍然要单独审核通过后才能渲染。
 
 正常使用时，Skill 根目录应保持像安装包一样干净。一次性配置、素材清单、文案审核报告、SRT、渲染计划和 staging 文件都不是默认用户交付物。
 

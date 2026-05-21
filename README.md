@@ -98,6 +98,10 @@ The public command surface is `scripts/video-director.sh` on Unix/macOS and
 checkout. See `SKILL.md` for the full workflow. Config templates are internal to
 the skill. In normal use, the agent generates the local config from your request
 and only asks for missing information when a selected path requires it.
+Generated configs include an `operation_confirmation.summary`; the agent should
+show those execution parameters and wait for your approval before running. This
+execution confirmation is separate from generated-copy review: Agent-written
+narration or subtitles still need explicit copy approval before render.
 
 Keep the Skill root clean during normal use. Job configs, manifests, copy review
 reports, SRT files, render plans, and staging media belong in the workspace or

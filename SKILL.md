@@ -249,7 +249,8 @@ directory for traceability.
 Before generating config, apply this clarification gate:
 
 - If the request already specifies narration, subtitles, source audio, BGM, TTS,
-  output mode, and duration, use those choices directly.
+  output mode, and duration, use those choices directly, then summarize the
+  execution parameters and wait for confirmation before running.
 - If the request only specifies source media and duration, present one concise
   assumption line and wait for confirmation before rendering:
   "I will start with a clean edit: a direct mp4 with the original audio, without
@@ -266,6 +267,18 @@ Before generating config, apply this clarification gate:
   question that names the meaningful choices: provided audio, generated copy for
   review, or optional Doubao TTS.
 
+The operation confirmation gate is separate from copy review:
+
+- `operation_confirmation` covers execution parameters such as output mode,
+  materials source, duration, audio, subtitles, targets, and output paths.
+  `run` refuses both dry-run and render while this status is pending.
+- Generated viewer-facing copy still requires `copy_review.status="approved"`.
+  Do not use operation confirmation as copy approval.
+- To prepare a user-facing summary without rendering, generate config normally
+  and show `operation_confirmation.summary`. After explicit user confirmation,
+  either run `confirm-operation <config>` or regenerate the config with
+  `--operation-confirmed`. The user should not hand-edit JSON.
+
 ### 2. Generate Config
 
 Direct mp4 path:
@@ -277,6 +290,7 @@ bash scripts/run.sh config local \
   --job-id demo-video \
   --narration-text "Viewer-facing narration and subtitles go here." \
   --director-brief "Private editing guidance goes here." \
+  --operation-confirmed \
   --set production.assets_manifest_path=/path/to/workspace/.video-director/assets_manifest.json \
   --set production.full_tts_duration_ms=30000 \
   --set outputs.final_render.output_name='"demo-video.mp4"'
@@ -302,6 +316,7 @@ bash scripts/run.sh config local \
   --output /path/to/workspace/.video-director/configs/video-director.generated.local.json \
   --job-id generated-video \
   --generated-narration-text "Generated subtitles for human review." \
+  --operation-confirmed \
   --set production.assets_manifest_path=/path/to/workspace/.video-director/assets_manifest.json \
   --set production.full_tts_duration_ms=30000
 bash scripts/run.sh review-copy \
@@ -317,6 +332,7 @@ bash scripts/run.sh config local \
   --output /path/to/workspace/.video-director/configs/video-director.draft.local.json \
   --job-id demo-draft \
   --narration-text "Viewer-facing narration and subtitles go here." \
+  --operation-confirmed \
   --set production.assets_manifest_path=/path/to/workspace/.video-director/assets_manifest.json
 ```
 
@@ -331,6 +347,8 @@ Important config semantics:
 - `inputs.narration_text` is viewer-facing narration/subtitle text.
 - `inputs.director_brief` is planning guidance and must not appear as subtitles.
 - User-provided `inputs.narration_text` can render directly.
+- `operation_confirmation.status` must be `approved` before `run`; this only
+  means the user approved execution parameters.
 - Generated viewer-facing copy must set `inputs.narration_source="generated"` and
   must be reviewed before rendering. Use `--generated-narration-text` for
   generated copy and add `--copy-reviewed` only after review approval.

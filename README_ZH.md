@@ -15,20 +15,28 @@
 复制给 Claude Code、Codex、Hermes、Openclaw、TRAE SOLO，或任何有 shell 权限的 Agent：
 
 ```text
-Set up https://github.com/ek0kies/video-director for me.
-Read install.md first and handle the environment yourself. The required runtime
-dependencies are Python 3.10+, Pillow from the root pyproject.toml, and
-ffmpeg/ffprobe.
-Clone the repo to a stable local path, use the launcher to detect an existing
-Python 3.10+ before installing anything, install only missing dependencies into
-that interpreter, register the whole repo as a skill for the current agent, then
-run the built-in demo smoke test. Do not install Miniforge, Conda, Anaconda,
-pyenv, or another Python distribution automatically; ask me first if no
-compatible Python exists. Only ask me if you need permission for system package
-installation or cannot determine the agent's skill location.
+请帮我安装 Video Director：https://github.com/ek0kies/video-director
+
+请先阅读仓库里的 install.md，然后你自己完成环境检查和安装。需要的运行环境是 Python 3.10+、根目录 pyproject.toml 中声明的 Pillow，以及 ffmpeg/ffprobe。
+
+请把仓库克隆到一个稳定的本地目录，使用仓库自带 launcher 自动检测已有 Python 3.10+，不要一开始就安装新的 Python。只把缺失依赖安装到 launcher 选中的那个 Python 解释器里。请把整个仓库注册为当前 Agent 的 skill，而不是只复制 SKILL.md。安装后请运行内置 demo smoke test，确认可以生成 mp4。
+
+不要自动安装 Miniforge、Conda、Anaconda、pyenv 或其他完整 Python 发行版。只有在需要安装系统软件、需要管理员权限、找不到兼容 Python，或无法确定当前 Agent 的 skill 目录时，再问我。最后只告诉我安装位置、skill 注册位置和验证结果。
 ```
 
 GitHub 仓库地址：https://github.com/ek0kies/video-director
+
+## 更新提示词
+
+已经安装过的用户，复制下面这段给 Agent：
+
+```text
+请帮我更新本机已安装的 Video Director 到最新版。
+
+你需要自己定位当前 Agent 已注册的 video-director skill 和本地仓库位置。如果它是 git 仓库，请更新到最新版；如果它只是复制出来的旧目录，请先备份，再用最新版仓库替换，并确保 Agent 注册的是整个 repo。
+
+更新后请自动检查 Python、Pillow、ffmpeg/ffprobe，并运行内置 demo smoke test。只有在需要安装系统软件、需要管理员权限、找不到兼容 Python，或无法确定 skill 目录时再问我。最后只告诉我更新是否成功、安装位置、skill 注册位置和验证结果。
+```
 
 ## 能做什么
 
@@ -66,8 +74,7 @@ scripts\video-director.cmd run demo\contest\video-director.contest-demo.local.js
 安装后，把 Agent 指向素材目录，然后说：
 
 ```text
-Use video-director to inventory these materials, propose a short-video strategy,
-and render a direct mp4 after I approve the plan.
+请使用 video-director 读取这些素材，先整理素材清单并提出短视频剪辑方案；等我确认方案和文案后，再渲染一个可直接播放的 mp4。
 ```
 
 Unix/macOS 使用 `scripts/video-director.sh`，Windows 使用 `scripts\video-director.cmd`。配置模板是 skill 内部实现细节；正常使用时，Agent 会根据你的请求生成本地配置，只在所选路径缺少必要信息时再询问。

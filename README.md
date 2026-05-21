@@ -29,6 +29,18 @@ installation or cannot determine the agent's skill location.
 
 GitHub repository: https://github.com/ek0kies/video-director
 
+## Update prompt
+
+If Video Director is already installed, paste this into your agent:
+
+```text
+Update my existing Video Director installation to the latest version.
+
+Find the video-director skill currently registered with this agent and locate its local repo. If it is a Git checkout, update it to the latest version. If it is an old copied folder, back it up, replace it with the latest repo, and make sure the agent registers the whole repo, not only SKILL.md.
+
+After updating, check Python, Pillow, ffmpeg/ffprobe, and run the built-in demo smoke test. Only ask me when system package installation, admin permission, a compatible Python install, or the agent skill directory cannot be resolved automatically. Report only whether the update succeeded, the install path, the skill registration path, and the verification result.
+```
+
 ## What it does
 
 - Inventories local image/video assets into a structured manifest.

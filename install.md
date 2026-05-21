@@ -220,7 +220,37 @@ Tell the user:
 - That the default contest-safe path is local mp4 rendering; cloud/TTS/avatar
   and adapter-specific draft export are optional follow-ups.
 
-## Keeping current
+## Updating an existing install
+
+Users should not have to run update commands themselves. If a user asks to
+update Video Director, treat it as an agent-first task:
+
+```text
+Update my existing Video Director installation to the latest version.
+
+Find the video-director skill currently registered with this agent and locate its local repo. If it is a Git checkout, update it to the latest version. If it is an old copied folder, back it up, replace it with the latest repo, and make sure the agent registers the whole repo, not only SKILL.md.
+
+After updating, check Python, Pillow, ffmpeg/ffprobe, and run the built-in demo smoke test. Only ask me when system package installation, admin permission, a compatible Python install, or the agent skill directory cannot be resolved automatically. Report only whether the update succeeded, the install path, the skill registration path, and the verification result.
+```
+
+Agent update checklist:
+
+1. Locate the registered `video-director` skill directory for the current agent.
+2. Resolve whether that path is a symlink, a Git checkout, or a copied folder.
+3. If it is a symlink to a Git checkout, update the target repo with
+   `git pull --ff-only`.
+4. If it is a Git checkout, update it with `git pull --ff-only`.
+5. If it is a copied non-Git folder, back it up, clone the latest repo to a
+   stable local path, and repoint the agent skill registration to the whole
+   repo.
+6. Use the launcher-selected Python for dependency checks and install only
+   missing baseline dependencies into that interpreter.
+7. Run the real smoke test from the Verify section before reporting success.
+
+If local user changes are present, do not overwrite them. Report the dirty
+files and ask whether to back them up, commit them, or stop.
+
+## Keeping current manually
 
 ```bash
 cd ~/Developer/video-director

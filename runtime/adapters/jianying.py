@@ -179,12 +179,25 @@ class JianyingDraftAdapter(OutputAdapter):
                 source = str(clip.get("source_path", "")).strip()
                 suffix = Path(urlparse(source).path).suffix or (".wav" if track_name == "audio_track" else ".mp4")
                 clip_id = str(clip.get("clip_id", "")).strip() or f"{track_name}_{index:02d}"
-                local_path = self._materialize_source(
-                    source=source,
-                    target_dir=track_dirs.get(track_name, assets_root),
-                    target_name=self._build_materialized_asset_name(clip_id=clip_id, suffix=suffix),
-                    dry_run=dry_run,
-                )
+                if source == "generated://black":
+                    width, height = self._parse_resolution(str(localized.get("resolution", "1080x1920")))
+                    duration_ms = max(int(clip.get("end_ms", 0) or 0) - int(clip.get("start_ms", 0) or 0), 1)
+                    local_path = self._materialize_generated_black_video(
+                        target_dir=track_dirs.get(track_name, assets_root),
+                        target_name=self._build_materialized_asset_name(clip_id=clip_id, suffix=".mp4"),
+                        width=width,
+                        height=height,
+                        fps=int(localized.get("fps", 30) or 30),
+                        duration_ms=duration_ms,
+                        dry_run=dry_run,
+                    )
+                else:
+                    local_path = self._materialize_source(
+                        source=source,
+                        target_dir=track_dirs.get(track_name, assets_root),
+                        target_name=self._build_materialized_asset_name(clip_id=clip_id, suffix=suffix),
+                        dry_run=dry_run,
+                    )
                 if local_path:
                     clip["source_path"] = local_path
                 manifest["tracks"][track_name].append(
@@ -195,6 +208,46 @@ class JianyingDraftAdapter(OutputAdapter):
                     }
                 )
         return localized, manifest
+
+    def _materialize_generated_black_video(
+        self,
+        *,
+        target_dir: Path,
+        target_name: str,
+        width: int,
+        height: int,
+        fps: int,
+        duration_ms: int,
+        dry_run: bool,
+    ) -> str:
+        target_dir = target_dir.resolve()
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target_path = (target_dir / target_name).resolve()
+        if dry_run:
+            return str(target_path)
+        ffmpeg_bin = str(self.config.get("ffmpeg_bin", "ffmpeg")).strip() or "ffmpeg"
+        duration_seconds = max(duration_ms / 1000.0, 0.001)
+        cmd = [
+            ffmpeg_bin,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            f"color=c=black:s={width}x{height}:r={max(fps, 1)}:d={duration_seconds:.3f}",
+            "-an",
+            "-c:v",
+            "libx264",
+            "-pix_fmt",
+            "yuv420p",
+            "-movflags",
+            "+faststart",
+            str(target_path),
+        ]
+        subprocess.run(cmd, check=True)
+        return str(target_path)
 
     @staticmethod
     def _build_materialized_asset_name(*, clip_id: str, suffix: str) -> str:
@@ -364,6 +417,7 @@ class JianyingDraftAdapter(OutputAdapter):
         source_us = None
         if clip.get("media_end_ms") is not None:
             source_us = self._ms_to_us(int(clip.get("media_end_ms", 0)) - int(clip.get("media_start_ms", 0)))
+        metadata = clip.get("metadata", {}) if isinstance(clip.get("metadata"), dict) else {}
         self._pyjy_add_video_segment(
             pyjy,
             clip_settings_cls,
@@ -375,6 +429,8 @@ class JianyingDraftAdapter(OutputAdapter):
             volume=volume,
             source_start_us=source_start_us,
             source_us=source_us,
+            fade_in_us=self._ms_to_us(int(metadata.get("fade_in_ms", 0) or 0)),
+            fade_out_us=self._ms_to_us(int(metadata.get("fade_out_ms", 0) or 0)),
         )
 
     def _add_audio_clip(self, pyjy: Any, script: Any, clip: Dict[str, Any], track_name: str) -> None:
@@ -497,6 +553,8 @@ class JianyingDraftAdapter(OutputAdapter):
         volume: float,
         source_start_us: int = 0,
         source_us: Optional[int] = None,
+        fade_in_us: int = 0,
+        fade_out_us: int = 0,
     ) -> None:
         if seg_us <= 0:
             return
@@ -509,16 +567,22 @@ class JianyingDraftAdapter(OutputAdapter):
         target_us = min(seg_us, source_us_final)
         if target_us <= 0:
             return
-        script.add_segment(
-            pyjy.VideoSegment(
-                material,
-                pyjy.Timerange(start_us, target_us),
-                source_timerange=pyjy.Timerange(safe_source_start_us, source_us_final),
-                volume=volume,
-                clip_settings=clip_settings_cls(alpha=1.0),
-            ),
-            track_name=track_name,
+        segment = pyjy.VideoSegment(
+            material,
+            pyjy.Timerange(start_us, target_us),
+            source_timerange=pyjy.Timerange(safe_source_start_us, source_us_final),
+            volume=volume,
+            clip_settings=clip_settings_cls(alpha=1.0),
         )
+        if fade_in_us > 0:
+            fade_in_us = min(max(fade_in_us, 0), target_us)
+            segment.add_keyframe(pyjy.KeyframeProperty.alpha, 0, 0.0)
+            segment.add_keyframe(pyjy.KeyframeProperty.alpha, fade_in_us, 1.0)
+        if fade_out_us > 0:
+            fade_out_us = min(max(fade_out_us, 0), target_us)
+            segment.add_keyframe(pyjy.KeyframeProperty.alpha, max(target_us - fade_out_us, 0), 1.0)
+            segment.add_keyframe(pyjy.KeyframeProperty.alpha, target_us, 0.0)
+        script.add_segment(segment, track_name=track_name)
 
     @staticmethod
     def _pyjy_add_audio_segment(

@@ -35,6 +35,11 @@ class NarrationFirstEditKernel:
         self.subtitle_phrase_max_chars = max(int(config.get("subtitle_phrase_max_chars", 18)), 4)
         self.subtitle_phrase_pause_weight = max(float(config.get("subtitle_phrase_pause_weight", 2.0)), 0.0)
         self.subtitle_min_cue_ms = max(int(config.get("subtitle_min_cue_ms", 450)), 1)
+        self.final_tail_frames = max(int(config.get("final_tail_frames", 0) or 0), 0)
+        configured_tail_ms = max(int(config.get("final_tail_buffer_ms", 0) or 0), 0)
+        frame_tail_ms = math.ceil(self.final_tail_frames * 1000 / max(self.fps, 1)) if self.final_tail_frames > 0 else 0
+        self.final_tail_buffer_ms = frame_tail_ms or configured_tail_ms
+        self.final_fade_out_ms = max(int(config.get("final_fade_out_ms", 450) or 0), 0)
 
     def build(self, bundle: ProductionBundle) -> KernelOutput:
         sentences = self._split_sentences(bundle.script_text)
@@ -203,6 +208,11 @@ class NarrationFirstEditKernel:
                     metadata={"source": "full_tts_audio_path"},
                 )
             )
+        tail_clip = self._build_final_tail_clip(duration_ms)
+        if tail_clip is not None:
+            self._mark_final_visual_fade(material_track, avatar_track, duration_ms)
+            material_track.append(tail_clip)
+            duration_ms = tail_clip.end_ms
         timeline = TimelineModel(
             job_id=bundle.job_id,
             duration_ms=duration_ms,
@@ -228,9 +238,55 @@ class NarrationFirstEditKernel:
                 "materials_count": len(bundle.materials),
                 "tts_clip_count": len(bundle.tts_clips),
                 "avatar_clip_count": len(bundle.avatar_clips),
+                "final_tail_frames": self.final_tail_frames,
+                "final_tail_buffer_ms": self.final_tail_buffer_ms,
+                "final_fade_out_ms": self.final_fade_out_ms,
             },
         )
         return KernelOutput(beat_sheet=beats, edit_decisions=edit_decisions, timeline=timeline)
+
+    def _build_final_tail_clip(self, timeline_end_ms: int) -> Optional[TimelineClip]:
+        if self.final_tail_buffer_ms <= 0 or timeline_end_ms <= 0:
+            return None
+        return TimelineClip(
+            clip_id="final-tail-buffer",
+            track="material_track",
+            source_path="generated://black",
+            start_ms=timeline_end_ms,
+            end_ms=timeline_end_ms + self.final_tail_buffer_ms,
+            media_start_ms=0,
+            media_end_ms=self.final_tail_buffer_ms,
+            role="end_buffer",
+            segment_id="final-tail",
+            text="",
+            metadata={
+                "kind": "black_tail",
+                "reason": "silent black tail buffer after final narration",
+            },
+        )
+
+    def _mark_final_visual_fade(
+        self,
+        material_track: Sequence[TimelineClip],
+        avatar_track: Sequence[TimelineClip],
+        timeline_end_ms: int,
+    ) -> None:
+        if self.final_fade_out_ms <= 0:
+            return
+        candidates = [
+            clip
+            for clip in list(material_track) + list(avatar_track)
+            if clip.source_path and clip.end_ms == timeline_end_ms and clip.end_ms > clip.start_ms
+        ]
+        if not candidates:
+            return
+        final_clip = candidates[-1]
+        fade_ms = min(self.final_fade_out_ms, final_clip.end_ms - final_clip.start_ms)
+        if fade_ms <= 0:
+            return
+        final_clip.metadata = dict(final_clip.metadata or {})
+        final_clip.metadata["fade_out_ms"] = fade_ms
+        final_clip.metadata["fade_reason"] = "fade final visual into generated black tail"
 
     @staticmethod
     def _split_sentences(script_text: str) -> List[str]:

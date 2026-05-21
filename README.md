@@ -29,17 +29,18 @@ installation or cannot determine the agent's skill location.
 
 GitHub repository: https://github.com/ek0kies/video-director
 
-## Update prompt
+## Updating
 
-If Video Director is already installed, paste this into your agent:
+After Video Director is installed, just ask your agent:
 
 ```text
-Update my existing Video Director installation to the latest version.
-
-Find the video-director skill currently registered with this agent and locate its local repo. If it is a Git checkout, update it to the latest version. If it is an old copied folder, back it up, replace it with the latest repo, and make sure the agent registers the whole repo, not only SKILL.md.
-
-After updating, check Python, Pillow, ffmpeg/ffprobe, and run the built-in demo smoke test. Only ask me when system package installation, admin permission, a compatible Python install, or the agent skill directory cannot be resolved automatically. Report only whether the update succeeded, the install path, the skill registration path, and the verification result.
+Update Video Director.
 ```
+
+The installed Skill contains the update workflow. The agent should locate the
+registered `video-director` Skill, refresh the whole repository, run the install
+and smoke checks, and report the install path, registered Skill path, and
+verification result.
 
 ## What it does
 
@@ -84,10 +85,11 @@ and render a direct mp4 after I approve the plan.
 ```
 
 The public command surface is `scripts/video-director.sh` on Unix/macOS and
-`scripts\video-director.cmd` on Windows; see `SKILL.md` for the full workflow.
-Config templates are internal to the skill. In normal use, the agent generates
-the local config from your request and only asks for missing information when a
-selected path requires it.
+`scripts\video-director.cmd` on Windows; agents can also use
+`scripts/run.sh update` or `scripts\run.ps1 update` to refresh an installed Git
+checkout. See `SKILL.md` for the full workflow. Config templates are internal to
+the skill. In normal use, the agent generates the local config from your request
+and only asks for missing information when a selected path requires it.
 
 ## License
 

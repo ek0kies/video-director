@@ -17,12 +17,41 @@ that can discover a `SKILL.md` file.
 Five things must be true:
 
 1. The `video-director` repo is cloned somewhere stable.
-2. The launcher can find Python 3.10+ automatically, or `VIDEO_DIRECTOR_PYTHON`
-   points to one.
-3. Required Python packages are available to the interpreter selected by the
-   launcher.
-4. `ffmpeg` and `ffprobe` are available on `PATH`.
-5. The current agent can discover this repo's `SKILL.md`.
+2. The whole repo is registered with the current Agent as `skills/video-director/`.
+3. `scripts/install.sh` can find Python 3.10+ or `VIDEO_DIRECTOR_PYTHON` points
+   to one.
+4. `scripts/doctor.sh` reports `STATUS PASS`.
+5. The current agent invokes the Skill through `scripts/run.sh`.
+
+## Agent fast path
+
+Run these commands from the Skill root. Do not ask the human to perform them
+manually.
+
+```bash
+bash scripts/install.sh
+bash scripts/doctor.sh
+bash tests/smoke.sh
+```
+
+Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install.ps1
+powershell -ExecutionPolicy Bypass -File scripts\doctor.ps1
+powershell -ExecutionPolicy Bypass -File tests\smoke.ps1
+```
+
+If `install.sh` or `doctor.sh` prints `FIX` commands, execute the safe local
+fixes yourself. Ask the human only when a fix needs admin/system package
+permission, no compatible Python exists, or the Agent skill directory cannot be
+resolved.
+
+The reusable install prompt for another AI Agent is:
+
+```text
+examples/install-prompt.md
+```
 
 ## Install prompt contract
 
@@ -72,13 +101,20 @@ Required dependencies:
 | ffprobe | Used for media/audio probing when available |
 
 Do not assume `python3` is wrong just because another machine reports an older
-default. The launcher checks `python3`, then `python`, then versioned commands:
+default. The installer checks `python3`, `python`, `py -3`, then versioned
+commands:
 
 ```bash
-bash scripts/video-director.sh --help
+bash scripts/install.sh --skip-system-install
 ```
 
-Windows:
+Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install.ps1 -SkipSystemInstall
+```
+
+Low-level Windows cmd fallback:
 
 ```bat
 scripts\video-director.cmd --help
@@ -98,16 +134,17 @@ If either reports Python 3.10 or newer, use that command:
 
 ```bash
 export VIDEO_DIRECTOR_PYTHON=python3  # or python, whichever is Python 3.10+
-bash scripts/video-director.sh --help
+bash scripts/install.sh --skip-system-install
 ```
 
-Windows:
+Windows PowerShell:
 
-```bat
+```powershell
 python3 -c "import sys; print(sys.executable); print(sys.version)"
 python -c "import sys; print(sys.executable); print(sys.version)"
-set VIDEO_DIRECTOR_PYTHON=python3
-scripts\video-director.cmd --help
+py -3 -c "import sys; print(sys.executable); print(sys.version)"
+$env:VIDEO_DIRECTOR_PYTHON = "py -3"
+powershell -ExecutionPolicy Bypass -File scripts\install.ps1 -SkipSystemInstall
 ```
 
 If neither command is compatible, stop and ask the user how they want Python
@@ -116,33 +153,38 @@ Python distribution. Do not download installer bundles on your own.
 
 ## 3. Install Python packages when needed
 
-The runtime is loaded from the repo by the launcher. Do not create a new global
-Python environment just because the system default `python3` is older.
-
-Run doctor after ffmpeg is available. If doctor reports that Pillow is missing,
-install dependencies into the interpreter selected by the launcher.
+The runtime is loaded from the repo by the launcher. Use the managed isolated
+environment created by `scripts/install.sh` instead of installing baseline
+dependencies globally.
 
 ```bash
-VIDEO_DIRECTOR_PYTHON=/path/to/python3.10-or-newer
-"$VIDEO_DIRECTOR_PYTHON" -m pip install -e .
+bash scripts/install.sh --skip-system-install
 ```
 
-Use the exact compatible interpreter that the launcher selected. If
-`VIDEO_DIRECTOR_PYTHON` is already set, use that same interpreter.
+Windows:
 
-The baseline dependency is Pillow. Optional extras:
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install.ps1 -SkipSystemInstall
+```
+
+`requirements.txt` is the baseline dependency manifest used by the installer.
+`pyproject.toml` remains the project metadata source. Do not add another
+dependency manifest under `runtime/`.
+
+Optional extras are not installed by default:
 
 ```bash
-"$VIDEO_DIRECTOR_PYTHON" -m pip install -e ".[jianying]"   # optional Jianying draft adapter
-"$VIDEO_DIRECTOR_PYTHON" -m pip install -e ".[tos]"        # optional cloud audio delivery
+"${VIDEO_DIRECTOR_VENV:-.venv}/bin/python" -m pip install -e ".[jianying]"   # optional Jianying draft adapter
+"${VIDEO_DIRECTOR_VENV:-.venv}/bin/python" -m pip install -e ".[tos]"        # optional cloud audio delivery
 ```
 
 ## 4. Install ffmpeg
 
 `ffmpeg` and `ffprobe` are hard requirements for the default mp4 path.
 
-Choose the correct package manager for the user's OS. The following are
-examples, not fixed requirements:
+`scripts/install.sh` attempts installation when a supported package manager and
+permission are available. If not, `scripts/doctor.sh` prints the minimal command
+for the OS. The command set is:
 
 ```bash
 # macOS
@@ -189,25 +231,18 @@ whether to import `SKILL.md` through the agent's system prompt/config.
 Run a real local smoke test:
 
 ```bash
-bash scripts/video-director.sh demo
-bash scripts/video-director.sh doctor demo/contest/video-director.contest-demo.local.json
-bash scripts/video-director.sh run demo/contest/video-director.contest-demo.local.json --dry-run
-bash scripts/video-director.sh run demo/contest/video-director.contest-demo.local.json
-bash scripts/video-director.sh summarize demo/contest/output/contest-demo/latest_run.json
+bash tests/smoke.sh
 ```
 
 Windows:
 
-```bat
-scripts\video-director.cmd demo
-scripts\video-director.cmd doctor demo\contest\video-director.contest-demo.local.json
-scripts\video-director.cmd run demo\contest\video-director.contest-demo.local.json --dry-run
-scripts\video-director.cmd run demo\contest\video-director.contest-demo.local.json
-scripts\video-director.cmd summarize demo\contest\output\contest-demo\latest_run.json
+```powershell
+powershell -ExecutionPolicy Bypass -File tests\smoke.ps1
 ```
 
-Success means the final render target reports `status=rendered` and a playable
-`contest-demo.mp4` exists under `demo/contest/output/contest-demo/...`.
+Success means the smoke script reports `STATUS PASS`, the final render target
+reports `status=rendered`, and a playable `contest-demo.mp4` exists in the smoke
+output directory.
 
 ## Hand off
 
@@ -222,38 +257,50 @@ Tell the user:
 
 ## Updating an existing install
 
-Users should not have to run update commands themselves. If a user asks to
-update Video Director, treat it as an agent-first task:
+Users should not have to copy maintenance instructions or run update commands themselves.
+If a user asks to update Video Director, treat it as an agent-first task. The
+expected user request is simply:
 
 ```text
-Update my existing Video Director installation to the latest version.
-
-Find the video-director skill currently registered with this agent and locate its local repo. If it is a Git checkout, update it to the latest version. If it is an old copied folder, back it up, replace it with the latest repo, and make sure the agent registers the whole repo, not only SKILL.md.
-
-After updating, check Python, Pillow, ffmpeg/ffprobe, and run the built-in demo smoke test. Only ask me when system package installation, admin permission, a compatible Python install, or the agent skill directory cannot be resolved automatically. Report only whether the update succeeded, the install path, the skill registration path, and the verification result.
+Update Video Director.
 ```
 
 Agent update checklist:
 
 1. Locate the registered `video-director` skill directory for the current agent.
 2. Resolve whether that path is a symlink, a Git checkout, or a copied folder.
-3. If it is a symlink to a Git checkout, update the target repo with
-   `git pull --ff-only`.
-4. If it is a Git checkout, update it with `git pull --ff-only`.
-5. If it is a copied non-Git folder, back it up, clone the latest repo to a
+3. If it is a symlink to a Git checkout or a Git checkout, run the platform
+   update entrypoint:
+
+   ```bash
+   bash scripts/run.sh update
+   ```
+
+   Windows:
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts\run.ps1 update
+   ```
+
+4. If it is a copied non-Git folder, back it up, clone the latest repo to a
    stable local path, and repoint the agent skill registration to the whole
    repo.
-6. Use the launcher-selected Python for dependency checks and install only
+5. Use the launcher-selected Python for dependency checks and install only
    missing baseline dependencies into that interpreter.
-7. Run the real smoke test from the Verify section before reporting success.
+6. Run the real smoke test from the Verify section before reporting success.
 
 If local user changes are present, do not overwrite them. Report the dirty
 files and ask whether to back them up, commit them, or stop.
 
-## Keeping current manually
+## Keeping current by Agent
 
 ```bash
 cd ~/Developer/video-director
-git pull --ff-only
-bash scripts/video-director.sh doctor <config>
+bash scripts/run.sh update
+```
+
+Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\run.ps1 update
 ```

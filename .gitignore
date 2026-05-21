@@ -2,6 +2,8 @@
 .env.*
 !.env.example
 .venv/
+.cache/
+.playwright-mcp/
 __pycache__/
 *.py[cod]
 .DS_Store
@@ -9,6 +11,6 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 *.log
-output/
 demo/
+output/
 *.local.json

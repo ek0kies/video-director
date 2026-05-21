@@ -15,6 +15,64 @@ local media -> assets manifest -> narration-first timeline -> final mp4
 The default path uses the bundled runtime and does not require cloud services, TTS,
 avatar generation, or editable-draft adapters.
 
+## Agent-native Package Contract
+
+This repository root is the Skill payload. When installed into an Agent, register
+the whole directory as `skills/video-director/`; do not copy only `SKILL.md`.
+
+Required Skill files:
+
+```text
+SKILL.md
+requirements.txt
+scripts/install.sh
+scripts/doctor.sh
+scripts/run.sh
+scripts/update.sh
+scripts/install.ps1
+scripts/doctor.ps1
+scripts/run.ps1
+scripts/update.ps1
+tests/smoke.sh
+tests/smoke.ps1
+runtime/
+```
+
+Use the standard entrypoints first:
+
+```bash
+bash scripts/install.sh
+bash scripts/doctor.sh
+bash scripts/run.sh --help
+bash scripts/run.sh update --help
+```
+
+Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install.ps1
+powershell -ExecutionPolicy Bypass -File scripts\doctor.ps1
+powershell -ExecutionPolicy Bypass -File scripts\run.ps1 --help
+powershell -ExecutionPolicy Bypass -File scripts\run.ps1 update -Help
+```
+
+- `scripts/install.sh` detects Python 3.10+, creates or reuses `.venv`, installs
+  `requirements.txt`, checks local permissions, and checks or attempts to
+  install `ffmpeg`/`ffprobe` when the current environment allows it.
+- `scripts/install.ps1` provides the same install contract for Windows Agents,
+  including `py -3`, `winget`, Chocolatey, and Scoop checks.
+- `scripts/doctor.sh` and `scripts/doctor.ps1` print clear `PASS`/`FAIL` lines
+  and AI-executable `FIX` commands. Run those fixes yourself when they do not
+  require new human permission.
+- `scripts/run.sh` and `scripts/run.ps1` are the stable invocation entrypoints.
+  They prefer the managed `.venv` and delegate to the existing command router.
+- `scripts/update.sh` and `scripts/update.ps1` refresh an installed Git checkout
+  and then run install, doctor, and smoke verification. They refuse to overwrite
+  dirty local changes.
+- Do not ask the human to manually install packages, hand-edit JSON, or run
+  step-by-step setup commands unless the printed fix requires admin/system
+  permission or no compatible Python can be found.
+
 ## User Contract
 
 - Do not ask users to open, copy, or hand-edit JSON templates.
@@ -45,22 +103,82 @@ avatar generation, or editable-draft adapters.
 
 ## Entrypoints
 
-Unix/macOS:
+Install or refresh the local Skill environment:
 
 ```bash
-bash scripts/video-director.sh --help
+bash scripts/install.sh
 ```
 
-Windows:
+Check whether the environment is usable:
+
+```bash
+bash scripts/doctor.sh
+```
+
+Run commands:
+
+```bash
+bash scripts/run.sh --help
+```
+
+Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install.ps1
+powershell -ExecutionPolicy Bypass -File scripts\doctor.ps1
+powershell -ExecutionPolicy Bypass -File scripts\run.ps1 --help
+```
+
+Windows also has a low-level cmd launcher:
 
 ```bat
 scripts\video-director.cmd --help
 ```
 
-Both launchers auto-detect Python 3.10+ and check `python3`, `python`, then
-versioned commands. If auto-detection fails, test both `python3` and `python`
-explicitly before proposing an installation. When either is compatible, set
-`VIDEO_DIRECTOR_PYTHON` to that command and continue.
+## Update Workflow
+
+When the user asks to update Video Director, do not send them back to the
+repository to copy a prompt. Treat it as an Agent-native Skill maintenance task.
+
+User request examples:
+
+```text
+Update Video Director.
+更新 Video Director。
+```
+
+Agent steps:
+
+1. Locate the registered `video-director` Skill directory for the current Agent.
+2. Resolve whether that path is a symlink, a Git checkout, or a copied folder.
+3. If it is a Git checkout or a symlink into one, run the platform update
+   entrypoint:
+
+   ```bash
+   bash scripts/run.sh update
+   ```
+
+   Windows PowerShell:
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File scripts\run.ps1 update
+   ```
+
+4. If it is a copied non-Git folder, back it up, clone the latest repository to
+   a stable local path, and repoint the Agent skill registration to the whole
+   repository. Do not register only `SKILL.md`.
+5. If local user changes are present, do not overwrite them. Report the dirty
+   files and ask whether to back them up, commit them, or stop.
+6. After updating, run install, doctor, and the built-in smoke flow. The update
+   entrypoint does this automatically for Git checkouts unless `--skip-verify`
+   is explicitly passed.
+7. Report only whether the update succeeded, the install path, the registered
+   Skill path, and the verification result.
+
+The shell entrypoints detect Python 3.10+ and check `python3`, `python`, `py -3`,
+then versioned commands. If auto-detection fails, test both `python3` and
+`python` explicitly before proposing an installation. When either is compatible,
+set `VIDEO_DIRECTOR_PYTHON` to that command and continue.
 
 Do not install Miniforge, Conda, Anaconda, pyenv, or any other Python
 distribution automatically. If no compatible Python exists, stop and ask the
@@ -76,7 +194,7 @@ manifest with paths, tags, descriptions, scene types, mood, and best-use hints.
 Offline filename-based fallback:
 
 ```bash
-bash scripts/video-director.sh analyze \
+bash scripts/run.sh analyze \
   --materials-dir /path/to/source-media \
   --output /path/to/workspace/assets_manifest.json
 ```
@@ -101,7 +219,7 @@ Before generating config, apply this clarification gate:
 Direct mp4 path:
 
 ```bash
-bash scripts/video-director.sh config local \
+bash scripts/run.sh config local \
   --output-mode video \
   --output /path/to/workspace/video-director.video.local.json \
   --job-id demo-video \
@@ -118,13 +236,13 @@ When the user explicitly provides final viewer-facing narration, use
 only add `--copy-reviewed` after approval:
 
 ```bash
-bash scripts/video-director.sh config local \
+bash scripts/run.sh config local \
   --output-mode video \
   --output /path/to/workspace/video-director.generated.local.json \
   --job-id generated-video \
   --generated-narration-text "Generated subtitles for human review." \
   --set production.full_tts_duration_ms=30000
-bash scripts/video-director.sh review-copy \
+bash scripts/run.sh review-copy \
   /path/to/workspace/video-director.generated.local.json \
   --output /path/to/workspace/copy_review.pending.json
 ```
@@ -132,7 +250,7 @@ bash scripts/video-director.sh review-copy \
 Editable draft path, only when explicitly requested:
 
 ```bash
-bash scripts/video-director.sh config local \
+bash scripts/run.sh config local \
   --output-mode draft \
   --output /path/to/workspace/video-director.draft.local.json \
   --job-id demo-draft \
@@ -164,7 +282,7 @@ Important config semantics:
 ### 3. Doctor
 
 ```bash
-bash scripts/video-director.sh doctor /path/to/workspace/video-director.video.local.json
+bash scripts/doctor.sh /path/to/workspace/video-director.video.local.json
 ```
 
 Stop on required errors. `ffmpeg` is required for real mp4 rendering.
@@ -172,8 +290,8 @@ Stop on required errors. `ffmpeg` is required for real mp4 rendering.
 ### 4. Dry Run And Render
 
 ```bash
-bash scripts/video-director.sh run /path/to/workspace/video-director.video.local.json --dry-run
-bash scripts/video-director.sh run /path/to/workspace/video-director.video.local.json
+bash scripts/run.sh run /path/to/workspace/video-director.video.local.json --dry-run
+bash scripts/run.sh run /path/to/workspace/video-director.video.local.json
 ```
 
 Relative media and output paths resolve against the caller's working directory.
@@ -183,7 +301,7 @@ directory.
 ### 5. Summarize
 
 ```bash
-bash scripts/video-director.sh summarize output/video_director/<job_id>/latest_run.json
+bash scripts/run.sh summarize output/video_director/<job_id>/latest_run.json
 ```
 
 Report the mp4 path, render status, beat count, and generated target files.
@@ -193,18 +311,23 @@ Report the mp4 path, render status, beat count, and generated target files.
 Use the built-in generated smoke assets when installing or validating the skill:
 
 ```bash
-bash scripts/video-director.sh demo
-bash scripts/video-director.sh doctor demo/contest/video-director.contest-demo.local.json
-bash scripts/video-director.sh run demo/contest/video-director.contest-demo.local.json --dry-run
-bash scripts/video-director.sh run demo/contest/video-director.contest-demo.local.json
-bash scripts/video-director.sh summarize demo/contest/output/contest-demo/latest_run.json
+bash tests/smoke.sh
 ```
 
-The `demo/` directory is generated local state and should not be committed.
+Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tests\smoke.ps1
+```
+
+The smoke script writes generated local state to a temporary directory by
+default. Set `VIDEO_DIRECTOR_KEEP_SMOKE=1` only when you need to inspect output.
 
 ## Failure Handling
 
-- If `doctor` fails on Python, ffmpeg, or Pillow, fix the local runtime first.
+- If `scripts/doctor.sh` or `scripts/doctor.ps1` fails on Python, ffmpeg,
+  ffprobe, or Pillow, run the printed `FIX` command yourself when it does not
+  require new human permission.
 - If rendering fails, inspect `final_render.render_plan.json` and the ffmpeg
   error.
 - If a sidecar `.srt` appears unexpectedly, check

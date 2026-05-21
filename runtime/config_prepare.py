@@ -154,6 +154,10 @@ def _apply_output_mode(payload: Dict[str, Any], *, runtime_mode: str, output_mod
 
     if output_mode == OUTPUT_MODE_VIDEO:
         _disable_default_avatar(payload)
+        editing = payload.setdefault("editing", {})
+        editing.setdefault("final_tail_frames", 2)
+        editing.setdefault("final_tail_buffer_ms", 0)
+        editing.setdefault("final_fade_out_ms", 450)
         payload.setdefault("production", {})["full_tts_audio_path"] = ""
         jianying["use_pyjianyingdraft"] = False
         outputs["targets"] = ["final_render"]

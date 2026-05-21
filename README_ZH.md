@@ -2,6 +2,8 @@
 
 用编码 Agent 把本地素材生成可直接播放的短视频 mp4。
 
+![Video Director 项目封面](assets/video-director-cover.png)
+
 [English](README.md)
 
 把图片或视频素材放到一个目录里，让 Agent 使用这个 skill，即可得到基于时间线的 `final.mp4` 类输出。默认路径是：
@@ -26,17 +28,16 @@
 
 GitHub 仓库地址：https://github.com/ek0kies/video-director
 
-## 更新提示词
+## 更新
 
-已经安装过的用户，复制下面这段给 Agent：
+安装过以后，直接对 Agent 说：
 
 ```text
-请帮我更新本机已安装的 Video Director 到最新版。
-
-你需要自己定位当前 Agent 已注册的 video-director skill 和本地仓库位置。如果它是 git 仓库，请更新到最新版；如果它只是复制出来的旧目录，请先备份，再用最新版仓库替换，并确保 Agent 注册的是整个 repo。
-
-更新后请自动检查 Python、Pillow、ffmpeg/ffprobe，并运行内置 demo smoke test。只有在需要安装系统软件、需要管理员权限、找不到兼容 Python，或无法确定 skill 目录时再问我。最后只告诉我更新是否成功、安装位置、skill 注册位置和验证结果。
+更新 Video Director。
 ```
+
+已安装的 Skill 内置更新流程。Agent 应该自己定位已注册的
+`video-director` Skill，刷新整个仓库，执行安装和 smoke 检查，最后只汇报安装位置、Skill 注册位置和验证结果。
 
 ## 能做什么
 
@@ -77,7 +78,8 @@ scripts\video-director.cmd run demo\contest\video-director.contest-demo.local.js
 请使用 video-director 读取这些素材，先整理素材清单并提出短视频剪辑方案；等我确认方案和文案后，再渲染一个可直接播放的 mp4。
 ```
 
-Unix/macOS 使用 `scripts/video-director.sh`，Windows 使用 `scripts\video-director.cmd`。配置模板是 skill 内部实现细节；正常使用时，Agent 会根据你的请求生成本地配置，只在所选路径缺少必要信息时再询问。
+Unix/macOS 使用 `scripts/video-director.sh`，Windows 使用 `scripts\video-director.cmd`；Agent 也可以用
+`scripts/run.sh update` 或 `scripts\run.ps1 update` 更新已安装的 Git checkout。配置模板是 skill 内部实现细节；正常使用时，Agent 会根据你的请求生成本地配置，只在所选路径缺少必要信息时再询问。
 
 ## License
 

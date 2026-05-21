@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import shutil
 import subprocess
 from pathlib import Path
@@ -257,27 +258,38 @@ class RenderedVideoAdapter(OutputAdapter):
         fps: int,
         subtitle_overlay_path: Optional[Path],
     ) -> None:
-        source = self._validate_media_source(clip.source_path, label=f"{clip.track}:{clip.clip_id}")
+        source_is_generated_black = self._is_generated_black_source(clip.source_path)
+        source = "" if source_is_generated_black else self._validate_media_source(clip.source_path, label=f"{clip.track}:{clip.clip_id}")
         duration_ms = max(int(clip.end_ms - clip.start_ms), 1)
-        duration_seconds = self._seconds_text(duration_ms)
+        duration_seconds = self._frame_aligned_seconds_text(duration_ms, fps)
         media_start_seconds = self._seconds_text(max(int(clip.media_start_ms), 0))
         pixel_format = str(self.effective_config.get("pixel_format", "yuv420p"))
         cmd = [self.ffmpeg_bin, "-y"]
-        if media_start_seconds != "0.000":
-            cmd += ["-ss", media_start_seconds]
-        if self._is_image_source(source):
+        if source_is_generated_black:
             cmd += [
-                "-loop",
-                "1",
-                "-framerate",
-                str(max(fps, 1)),
+                "-f",
+                "lavfi",
                 "-t",
                 duration_seconds,
                 "-i",
-                source,
+                f"color=c=black:s={width}x{height}:r={max(fps, 1)}",
             ]
         else:
-            cmd += ["-i", source]
+            if media_start_seconds != "0.000":
+                cmd += ["-ss", media_start_seconds]
+            if self._is_image_source(source):
+                cmd += [
+                    "-loop",
+                    "1",
+                    "-framerate",
+                    str(max(fps, 1)),
+                    "-t",
+                    duration_seconds,
+                    "-i",
+                    source,
+                ]
+            else:
+                cmd += ["-i", source]
         if subtitle_overlay_path is not None:
             cmd += [
                 "-loop",
@@ -295,6 +307,7 @@ class RenderedVideoAdapter(OutputAdapter):
             fps=fps,
             pixel_format=pixel_format,
             duration_seconds=duration_seconds,
+            fade_out_ms=self._clip_fade_out_ms(clip),
         )
         codec = str(self.effective_config.get("video_codec", "libx264"))
         preset = str(self.effective_config.get("preset", "medium"))
@@ -352,6 +365,7 @@ class RenderedVideoAdapter(OutputAdapter):
         fps: int,
         pixel_format: str,
         duration_seconds: str,
+        fade_out_ms: int,
     ) -> str:
         background_color = str(self.effective_config.get("background_color", "black")).strip() or "black"
         background_mode = str(self.effective_config.get("background_mode", "blurred_fill")).strip().lower()
@@ -382,11 +396,16 @@ class RenderedVideoAdapter(OutputAdapter):
             ]
         transition_mode = self._transition_mode()
         if transition_mode == "fade":
-            fade_duration = self._transition_duration_seconds(duration_seconds)
-            if fade_duration > 0:
-                filters.append(f"fade=t=in:st=0:d={fade_duration:.3f}")
-                fade_out_start = max(float(duration_seconds) - fade_duration, 0.0)
-                filters.append(f"fade=t=out:st={fade_out_start:.3f}:d={fade_duration:.3f}")
+            fade_in_duration = self._transition_duration_seconds(duration_seconds)
+            fade_out_duration = self._transition_duration_seconds(
+                duration_seconds,
+                configured_duration_ms=fade_out_ms if fade_out_ms > 0 else None,
+            )
+            if fade_in_duration > 0:
+                filters.append(f"fade=t=in:st=0:d={fade_in_duration:.3f}")
+            if fade_out_duration > 0:
+                fade_out_start = max(float(duration_seconds) - fade_out_duration, 0.0)
+                filters.append(f"fade=t=out:st={fade_out_start:.3f}:d={fade_out_duration:.3f}")
         filters.append(f"format={pixel_format}")
         return ",".join(filters)
 
@@ -402,8 +421,12 @@ class RenderedVideoAdapter(OutputAdapter):
         text = matching[0].text.strip()
         return text or clip.text
 
-    def _transition_duration_seconds(self, duration_seconds: str) -> float:
-        transition_duration_ms = max(int(self.effective_config.get("transition_duration_ms", 0) or 0), 0)
+    def _transition_duration_seconds(self, duration_seconds: str, *, configured_duration_ms: Optional[int] = None) -> float:
+        transition_duration_ms = (
+            max(int(configured_duration_ms or 0), 0)
+            if configured_duration_ms is not None
+            else max(int(self.effective_config.get("transition_duration_ms", 0) or 0), 0)
+        )
         if transition_duration_ms <= 0:
             return 0.0
         clip_duration = max(float(duration_seconds), 0.001)
@@ -414,6 +437,11 @@ class RenderedVideoAdapter(OutputAdapter):
 
     def _transition_mode(self) -> str:
         return str(self.effective_config.get("transition_mode", "fade")).strip().lower()
+
+    @staticmethod
+    def _clip_fade_out_ms(clip: TimelineClip) -> int:
+        metadata = clip.metadata if isinstance(clip.metadata, dict) else {}
+        return max(int(metadata.get("fade_out_ms", 0) or 0), 0)
 
     def _render_audio_track(
         self,
@@ -426,7 +454,11 @@ class RenderedVideoAdapter(OutputAdapter):
         if not clips:
             return None
         if len(clips) == 1 and clips[0].start_ms <= 0 and (clips[0].end_ms >= timeline.duration_ms or clips[0].segment_id == "full-track"):
-            return self._render_single_audio_source(clips[0], output_dir / "full_audio.wav")
+            return self._render_single_audio_source(
+                clips[0],
+                output_dir / "full_audio.wav",
+                target_duration_ms=timeline.duration_ms,
+            )
 
         cursor_ms = 0
         audio_parts: List[Path] = []
@@ -465,9 +497,9 @@ class RenderedVideoAdapter(OutputAdapter):
         self._run_ffmpeg(cmd, label="concat audio track")
         return output_path
 
-    def _render_single_audio_source(self, clip: TimelineClip, output_path: Path) -> Path:
+    def _render_single_audio_source(self, clip: TimelineClip, output_path: Path, *, target_duration_ms: int) -> Path:
         source = self._validate_media_source(clip.source_path, label=f"audio:{clip.clip_id}")
-        duration_ms = max(int(clip.end_ms - clip.start_ms), 1)
+        duration_ms = max(int(target_duration_ms), int(clip.end_ms - clip.start_ms), 1)
         media_start_seconds = self._seconds_text(max(int(clip.media_start_ms), 0))
         duration_seconds = self._seconds_text(duration_ms)
         cmd = [self.ffmpeg_bin, "-y"]
@@ -766,6 +798,12 @@ class RenderedVideoAdapter(OutputAdapter):
         return f"{max(int(value_ms), 1) / 1000:.3f}"
 
     @staticmethod
+    def _frame_aligned_seconds_text(value_ms: int, fps: int) -> str:
+        safe_fps = max(int(fps), 1)
+        frames = max(math.ceil(max(int(value_ms), 1) * safe_fps / 1000), 1)
+        return f"{frames / safe_fps:.3f}"
+
+    @staticmethod
     def _write_concat_list(path: Path, items: Sequence[Path]) -> None:
         lines = []
         for item in items:
@@ -792,6 +830,10 @@ class RenderedVideoAdapter(OutputAdapter):
     @staticmethod
     def _is_image_source(source: str) -> bool:
         return Path(urlparse(source).path).suffix.lower() in IMAGE_EXTS
+
+    @staticmethod
+    def _is_generated_black_source(source: str) -> bool:
+        return str(source or "").strip() == "generated://black"
 
     @staticmethod
     def _run_ffmpeg(cmd: Sequence[str], *, label: str) -> None:

@@ -154,5 +154,5 @@ def run_doctor(*, config: Optional[Dict[str, Any]], cwd: Path) -> Dict[str, Any]
         "status": overall_status,
         "cwd": str(cwd),
         "checks": checks,
-        "recommended_command": "bash scripts/video-director.sh doctor <config>",
+        "recommended_command": "bash scripts/doctor.sh <config>",
     }

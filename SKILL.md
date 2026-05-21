@@ -251,11 +251,21 @@ Before generating config, apply this clarification gate:
 - If the request already specifies narration, subtitles, source audio, BGM, TTS,
   output mode, and duration, use those choices directly, then summarize the
   execution parameters and wait for confirmation before running.
+- Do not ask for style by default after Seedance removal. Use a material-first
+  clean edit unless the user explicitly requests generated visuals, strong
+  styling, narration tone, BGM style, or subtitle styling.
+- Orientation is an execution parameter. If the user does not specify it,
+  default short-video delivery to vertical 9:16 and include that choice in
+  `operation_confirmation.summary`.
+- Output mode is an execution parameter. Default to `video` / `final_render`;
+  use editable `draft` only when the user explicitly asks for it.
+- Subtitles, voiceover, TTS, and BGM materially change the result. Do not add
+  them silently; include enabled/disabled state in the operation confirmation.
 - If the request only specifies source media and duration, present one concise
   assumption line and wait for confirmation before rendering:
-  "I will start with a clean edit: a direct mp4 with the original audio, without
-  extra voiceover, subtitles, or BGM. If you want a narrated version, I can
-  draft narration copy and subtitles for your review first."
+  "I will start with a clean edit: a vertical 9:16 direct mp4 with the original
+  audio, without extra voiceover, subtitles, or BGM. If you want a narrated
+  version, I can draft narration copy and subtitles for your review first."
 - If the user requested generated copy, create the material-aware copy plan,
   draft copy within that plan's duration and material constraints, then create
   the review report before rendering. Do not treat generated subtitles as
@@ -270,8 +280,9 @@ Before generating config, apply this clarification gate:
 The operation confirmation gate is separate from copy review:
 
 - `operation_confirmation` covers execution parameters such as output mode,
-  materials source, duration, audio, subtitles, targets, and output paths.
-  `run` refuses both dry-run and render while this status is pending.
+  orientation/aspect ratio, materials source, duration, style policy, audio,
+  subtitles, targets, and output paths. `run` refuses both dry-run and render
+  while this status is pending.
 - Generated viewer-facing copy still requires `copy_review.status="approved"`.
   Do not use operation confirmation as copy approval.
 - To prepare a user-facing summary without rendering, generate config normally

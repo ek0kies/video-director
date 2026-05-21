@@ -46,17 +46,68 @@ def _output_mode(targets: List[str]) -> str:
     return "custom"
 
 
+def _resolution_parts(raw: Any) -> tuple[int, int]:
+    text = str(raw or "").strip().lower()
+    if "x" not in text:
+        return 0, 0
+    width, height = text.split("x", 1)
+    try:
+        return int(width.strip()), int(height.strip())
+    except ValueError:
+        return 0, 0
+
+
+def _orientation(width: int, height: int) -> str:
+    if width <= 0 or height <= 0:
+        return "unspecified"
+    if height > width:
+        return "portrait"
+    if width > height:
+        return "landscape"
+    return "square"
+
+
+def _aspect_ratio(width: int, height: int) -> str:
+    if width <= 0 or height <= 0:
+        return "unspecified"
+    smaller = min(width, height)
+    larger = max(width, height)
+    if smaller == 0:
+        return "unspecified"
+    if larger * 9 == smaller * 16:
+        return "9:16" if height >= width else "16:9"
+    if width == height:
+        return "1:1"
+    return f"{width}:{height}"
+
+
+def _style_policy(inputs: Dict[str, Any]) -> Dict[str, Any]:
+    requested = str(inputs.get("style") or inputs.get("visual_style") or "").strip()
+    return {
+        "requested_style": requested,
+        "default_policy": "material_first_clean_edit",
+        "ask_required": bool(requested),
+        "note": (
+            "Use the requested style as an execution parameter."
+            if requested
+            else "Do not ask for style by default; use a material-first clean edit unless the user requests strong styling."
+        ),
+    }
+
+
 def build_operation_summary(config: Dict[str, Any]) -> Dict[str, Any]:
     """Return the user-confirmable execution parameters for a config."""
 
     inputs = _as_dict(config.get("inputs"))
     production = _as_dict(config.get("production"))
     outputs = _as_dict(config.get("outputs"))
+    editing = _as_dict(config.get("editing"))
     final_render = _as_dict(outputs.get("final_render"))
     jianying = _as_dict(outputs.get("jianying"))
     copy_review = _as_dict(inputs.get("copy_review"))
     targets = _targets(outputs)
     mode = _output_mode(targets)
+    width, height = _resolution_parts(editing.get("resolution"))
 
     return {
         "job_id": str(config.get("job_id") or production.get("job_id") or inputs.get("job_id") or "").strip(),
@@ -65,6 +116,13 @@ def build_operation_summary(config: Dict[str, Any]) -> Dict[str, Any]:
         "output_root": str(outputs.get("output_root") or "output/video_director"),
         "materials_source": _materials_source(inputs, production),
         "duration_ms": production.get("full_tts_duration_ms"),
+        "visual": {
+            "resolution": str(editing.get("resolution") or "").strip(),
+            "orientation": _orientation(width, height),
+            "aspect_ratio": _aspect_ratio(width, height),
+            "orientation_requires_confirmation": True,
+        },
+        "style": _style_policy(inputs),
         "narration": {
             "source": str(inputs.get("narration_source") or "user_provided").strip(),
             "has_viewer_facing_text": bool(str(inputs.get("narration_text") or inputs.get("script_text") or "").strip()),

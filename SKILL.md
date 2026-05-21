@@ -21,6 +21,15 @@ avatar generation, or editable-draft adapters.
 - Ask users for intent, source media location, output preference, narration or
   style requirements, and only the missing credentials/paths required by the
   selected optional path.
+- For simple requests such as "cut a 30 second video from this folder", state
+  the default editing assumptions before rendering: direct mp4, keep source
+  audio, no TTS, no external music, and no burned subtitles unless viewer-facing
+  narration or copy is provided or requested.
+- Do not turn the default assumptions into a long form. Ask only for the choices
+  that materially change the output: TTS or voiceover, burned subtitles, source
+  audio retention, external music, and editable draft export.
+- If the user asks to proceed quickly or accepts the assumptions, continue with
+  those defaults without asking again.
 - Generate local `*.local.json` configs yourself from `runtime/templates/`.
 - Treat `runtime/templates/` as internal scaffolding.
 - Use `video` as the default output. It must mean a directly playable mp4.
@@ -67,6 +76,20 @@ bash scripts/video-director.sh analyze \
   --materials-dir /path/to/source-media \
   --output /path/to/workspace/assets_manifest.json
 ```
+
+Before generating config, apply this clarification gate:
+
+- If the request already specifies narration, subtitles, source audio, BGM, TTS,
+  output mode, and duration, use those choices directly.
+- If the request only specifies source media and duration, present one concise
+  assumption line and wait for confirmation before rendering:
+  "I will make a direct mp4, keep source audio, add no TTS, add no external
+  music, and burn no subtitles because no viewer-facing copy was provided."
+- If the user requested generated copy, create the review report before
+  rendering. Do not treat generated subtitles as approved copy.
+- If the user requested TTS, avatar, cloud delivery, or editable draft export,
+  ask only for the credentials, paths, or adapter constraints required by that
+  selected path.
 
 ### 2. Generate Config
 

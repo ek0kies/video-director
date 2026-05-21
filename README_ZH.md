@@ -2,7 +2,7 @@
 
 用编码 Agent 把本地素材生成可直接播放的短视频 mp4。
 
-![Video Director 项目封面](assets/video-director-cover.png)
+![Video Director 项目封面](https://raw.githubusercontent.com/ek0kies/video-director/main/assets/video-director-cover.png)
 
 [English](README.md)
 

@@ -2,6 +2,8 @@
 
 Turn local media into a directly playable short mp4 with a coding agent.
 
+![Video Director project cover](https://raw.githubusercontent.com/ek0kies/video-director/main/assets/video-director-cover.png)
+
 [简体中文](README_ZH.md)
 
 Drop source media in a folder, ask an agent to use this skill, and get a

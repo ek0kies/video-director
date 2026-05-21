@@ -9,7 +9,7 @@ This is a standalone Agent skill. It turns local media into a short vertical
 video through this default flow:
 
 ```text
-local media -> assets manifest -> narration-first timeline -> final mp4
+local media -> assets manifest -> material-aware copy plan -> reviewed narration -> timeline -> final mp4
 ```
 
 The default path uses the bundled runtime and does not require cloud services, TTS,
@@ -86,8 +86,9 @@ powershell -ExecutionPolicy Bypass -File scripts\run.ps1 update -Help
   `VIDEO_DIRECTOR_WORKSPACE_ROOT` when invoking the Skill from another current
   directory.
 - User-facing output is the final mp4 or the requested editable draft. Internal
-  artifacts such as manifests, config snapshots, beat sheets, EDL, timeline
-  models, render plans, staging media, and review JSON are for Agent/debug use.
+  artifacts such as manifests, material-aware copy plans, config snapshots, beat
+  sheets, EDL, timeline models, render plans, staging media, and review JSON are
+  for Agent/debug use.
 - Report the final deliverable path first. Mention internal files only when the
   user asks for debugging details or a command fails.
 - `summarize` is concise by default. Use `summarize --verbose` only when you
@@ -220,7 +221,8 @@ user to choose a lightweight installation method.
 ### 1. Inspect Materials
 
 Prefer Agent visual understanding when available. Write or update a structured
-manifest with paths, tags, descriptions, scene types, mood, and best-use hints.
+manifest with paths, tags, descriptions, scene types, mood, best-use hints, and
+known media durations.
 
 Offline filename-based fallback:
 
@@ -229,6 +231,20 @@ bash scripts/run.sh analyze \
   --materials-dir /path/to/source-media \
   --output /path/to/workspace/assets_manifest.json
 ```
+
+If the Agent will generate or rewrite narration, create a material-aware copy
+plan before writing viewer-facing copy. Use that report to constrain duration,
+sentence count, and claims to the available material:
+
+```bash
+bash scripts/run.sh plan-copy \
+  /path/to/workspace/.video-director/configs/video-director.video.local.json \
+  --output /path/to/workspace/.video-director/reviews/material_copy_plan.json
+```
+
+The user should not have to run `plan-copy` manually. It is an Agent-internal
+planning artifact, and `run` also writes `Material_Copy_Plan.json` into each run
+directory for traceability.
 
 Before generating config, apply this clarification gate:
 
@@ -239,8 +255,10 @@ Before generating config, apply this clarification gate:
   "I will start with a clean edit: a direct mp4 with the original audio, without
   extra voiceover, subtitles, or BGM. If you want a narrated version, I can
   draft narration copy and subtitles for your review first."
-- If the user requested generated copy, create the review report before
-  rendering. Do not treat generated subtitles as approved copy.
+- If the user requested generated copy, create the material-aware copy plan,
+  draft copy within that plan's duration and material constraints, then create
+  the review report before rendering. Do not treat generated subtitles as
+  approved copy.
 - If the user requested TTS, avatar, cloud delivery, or editable draft export,
   ask only for the credentials, paths, or adapter constraints required by that
   selected path.
@@ -266,15 +284,25 @@ bash scripts/run.sh config local \
 
 When the user explicitly provides final viewer-facing narration, use
 `--narration-text`. When the Agent generates viewer-facing narration, do not use
-`--narration-text`; use `--generated-narration-text`, build a review report, and
-only add `--copy-reviewed` after approval:
+`--narration-text`; first use `plan-copy` to constrain the generated text, then
+use `--generated-narration-text`, build a review report, and only add
+`--copy-reviewed` after approval:
 
 ```bash
 bash scripts/run.sh config local \
   --output-mode video \
   --output /path/to/workspace/.video-director/configs/video-director.generated.local.json \
   --job-id generated-video \
+  --set production.assets_manifest_path=/path/to/workspace/.video-director/assets_manifest.json
+bash scripts/run.sh plan-copy \
+  /path/to/workspace/.video-director/configs/video-director.generated.local.json \
+  --output /path/to/workspace/.video-director/reviews/material_copy_plan.json
+bash scripts/run.sh config local \
+  --output-mode video \
+  --output /path/to/workspace/.video-director/configs/video-director.generated.local.json \
+  --job-id generated-video \
   --generated-narration-text "Generated subtitles for human review." \
+  --set production.assets_manifest_path=/path/to/workspace/.video-director/assets_manifest.json \
   --set production.full_tts_duration_ms=30000
 bash scripts/run.sh review-copy \
   /path/to/workspace/.video-director/configs/video-director.generated.local.json \
@@ -306,7 +334,12 @@ Important config semantics:
 - Generated viewer-facing copy must set `inputs.narration_source="generated"` and
   must be reviewed before rendering. Use `--generated-narration-text` for
   generated copy and add `--copy-reviewed` only after review approval.
+- `plan-copy` creates a material-aware copy plan and does not render media.
 - `review-copy` creates a local review report and does not render media.
+- `editing.material_duration_policy="cap"` lets the runtime fit planned
+  narration to known material capacity before real audio exists. If real audio
+  already exists and visuals cannot support it, the run fails with a planning
+  error instead of padding with black frames or silently stretching clips.
 - `--output-mode video` maps to `outputs.targets=["final_render"]`.
 - `--output-mode draft` maps to the current editable-draft adapter target.
 - Internal bundles or debug artifacts are not valid substitutes for `video`.

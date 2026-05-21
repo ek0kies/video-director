@@ -431,6 +431,7 @@ class JianyingDraftAdapter(OutputAdapter):
             source_us=source_us,
             fade_in_us=self._ms_to_us(int(metadata.get("fade_in_ms", 0) or 0)),
             fade_out_us=self._ms_to_us(int(metadata.get("fade_out_ms", 0) or 0)),
+            allow_source_stretch=bool(metadata.get("allow_source_stretch", False)),
         )
 
     def _add_audio_clip(self, pyjy: Any, script: Any, clip: Dict[str, Any], track_name: str) -> None:
@@ -555,6 +556,7 @@ class JianyingDraftAdapter(OutputAdapter):
         source_us: Optional[int] = None,
         fade_in_us: int = 0,
         fade_out_us: int = 0,
+        allow_source_stretch: bool = False,
     ) -> None:
         if seg_us <= 0:
             return
@@ -564,7 +566,14 @@ class JianyingDraftAdapter(OutputAdapter):
         preferred_source_us = int(source_us) if source_us is not None else int(seg_us)
         available_us = max(material_duration_us - safe_source_start_us, 1)
         source_us_final = min(max(preferred_source_us, 1), available_us)
-        target_us = min(seg_us, source_us_final)
+        # Only explicit timeline tail/hold decisions may stretch source media.
+        # Ordinary beats should expose planning gaps instead of hiding them in
+        # the exporter.
+        target_us = (
+            max(int(seg_us), 1)
+            if allow_source_stretch
+            else min(int(seg_us), source_us_final)
+        )
         if target_us <= 0:
             return
         segment = pyjy.VideoSegment(

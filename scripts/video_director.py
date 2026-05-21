@@ -32,6 +32,7 @@ from runtime.assets_manifest import AssetAnalysisError, build_assets_manifest  #
 from runtime.config_prepare import prepare_config  # noqa: E402
 from runtime.copy_review import build_copy_review_report, write_copy_review_report  # noqa: E402
 from runtime.doctor import run_doctor  # noqa: E402
+from runtime.material_planning import build_material_copy_plan, write_material_copy_plan  # noqa: E402
 from runtime.production import ProductionConfigError  # noqa: E402
 from runtime.summarize import summarize_run  # noqa: E402
 from runtime.workflow import VideoDirectorWorkflow  # noqa: E402
@@ -246,6 +247,40 @@ def _cmd_review_copy(args: Sequence[str]) -> int:
     return 0
 
 
+def _cmd_plan_copy(args: Sequence[str]) -> int:
+    parser = argparse.ArgumentParser(description="Build a material-aware copy planning report")
+    parser.add_argument("config", help="path to the Video Director config")
+    parser.add_argument("--output", help="optional report JSON output path")
+    parsed = parser.parse_args(args)
+
+    workspace_root = _workspace_root()
+    config_path = _resolve_config_path(parsed.config, workspace_root=workspace_root)
+    if not config_path.is_file():
+        raise SystemExit(f"error: config not found: {config_path}")
+    output_path = Path(parsed.output).expanduser() if parsed.output else None
+    if output_path is not None and not output_path.is_absolute():
+        output_path = (workspace_root / output_path).resolve()
+    try:
+        report = build_material_copy_plan(_read_json(config_path), cwd=workspace_root)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    write_material_copy_plan(report, output_path)
+    if output_path is not None:
+        print(
+            json.dumps(
+                {
+                    "status": report["status"],
+                    "output": str(output_path),
+                    "max_narration_duration_ms": report["recommended_copy_constraints"]["max_narration_duration_ms"],
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+    return 0
+
+
 def _cmd_summarize(args: Sequence[str]) -> int:
     parser = argparse.ArgumentParser(description="Summarize a Video Director run")
     parser.add_argument("source", help="path to latest_run.json or run directory")
@@ -365,6 +400,7 @@ def _usage() -> str:
 commands:
   analyze    Build an assets manifest from media files
   config     Generate a local config
+  plan-copy  Build a material-aware copy planning report
   review-copy  Build a viewer-facing copy review report
   doctor     Check runtime prerequisites
   run        Dry-run or render the pipeline
@@ -384,6 +420,8 @@ def main(argv: Sequence[str]) -> int:
         return _cmd_analyze(args)
     if command == "config":
         return _cmd_config(args)
+    if command == "plan-copy":
+        return _cmd_plan_copy(args)
     if command == "review-copy":
         return _cmd_review_copy(args)
     if command == "doctor":

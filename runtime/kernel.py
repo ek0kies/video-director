@@ -7,7 +7,7 @@ import re
 from collections import defaultdict
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
-from .models import Beat, EditDecision, KernelOutput, ProductionBundle, SubtitleCue, TimelineClip, TimelineModel
+from .models import Beat, EditDecision, KernelOutput, MaterialAsset, ProductionBundle, SubtitleCue, TimelineClip, TimelineModel
 
 
 class KernelConfigError(ValueError):
@@ -31,6 +31,7 @@ class NarrationFirstEditKernel:
         self.avatar_ending_segments = int(config.get("avatar_ending_segments", 1))
         self.avatar_min_segments_for_middle = int(config.get("avatar_min_segments_for_middle", 6))
         self.max_material_reuse = int(config.get("max_material_reuse", 2))
+        self.material_duration_policy = str(config.get("material_duration_policy", "cap")).strip().lower() or "cap"
         self.subtitle_mode = str(config.get("subtitle_mode", "sentence")).strip().lower() or "sentence"
         self.subtitle_phrase_max_chars = max(int(config.get("subtitle_phrase_max_chars", 18)), 4)
         self.subtitle_phrase_pause_weight = max(float(config.get("subtitle_phrase_pause_weight", 2.0)), 0.0)
@@ -48,9 +49,16 @@ class NarrationFirstEditKernel:
 
         durations = self._resolve_beat_durations(sentences, bundle)
         avatar_indexes = self._pick_avatar_indexes(len(sentences)) if self.enable_avatar_timeline else set()
+        narrative_keywords = self._extract_narrative_keywords(bundle.understanding)
+        durations = self._fit_durations_to_visual_materials(
+            sentences=sentences,
+            durations=durations,
+            bundle=bundle,
+            avatar_indexes=avatar_indexes,
+            narrative_keywords=narrative_keywords,
+        )
         avatar_by_segment, avatar_by_order = self._index_avatar_clips(bundle) if self.enable_avatar_timeline else ({}, [])
         audio_by_segment, audio_by_order = self._index_audio_clips(bundle)
-        narrative_keywords = self._extract_narrative_keywords(bundle.understanding)
 
         beats: List[Beat] = []
         edit_decisions: List[EditDecision] = []
@@ -134,7 +142,12 @@ class NarrationFirstEditKernel:
                 segment_type = "B_ROLL"
 
             if segment_type == "B_ROLL":
-                material, material_cursor = self._pick_material(bundle, text, keywords, material_reuse, material_cursor)
+                material, material_cursor, reuse_index = self._pick_material(bundle, text, keywords, material_reuse, material_cursor)
+                media_start_ms, media_end_ms, media_metadata = self._material_media_window(
+                    material=material,
+                    duration_ms=end_ms - start_ms,
+                    reuse_index=reuse_index,
+                )
                 beat.selected_asset_id = material.asset_id
                 material_track.append(
                     TimelineClip(
@@ -143,12 +156,12 @@ class NarrationFirstEditKernel:
                         source_path=material.path,
                         start_ms=start_ms,
                         end_ms=end_ms,
-                        media_start_ms=0,
-                        media_end_ms=material.duration_ms,
+                        media_start_ms=media_start_ms,
+                        media_end_ms=media_end_ms,
                         role="broll",
                         segment_id=beat_id,
                         text=text,
-                        metadata={"asset_id": material.asset_id, "tags": material.tags, **material.metadata},
+                        metadata={"asset_id": material.asset_id, "tags": material.tags, **material.metadata, **media_metadata},
                     )
                 )
                 edit_decisions.append(
@@ -208,11 +221,7 @@ class NarrationFirstEditKernel:
                     metadata={"source": "full_tts_audio_path"},
                 )
             )
-        tail_clip = self._build_final_tail_clip(duration_ms)
-        if tail_clip is not None:
-            self._mark_final_visual_fade(material_track, avatar_track, duration_ms)
-            material_track.append(tail_clip)
-            duration_ms = tail_clip.end_ms
+        duration_ms = self._extend_final_visual_tail(material_track, avatar_track, duration_ms)
         timeline = TimelineModel(
             job_id=bundle.job_id,
             duration_ms=duration_ms,
@@ -245,25 +254,38 @@ class NarrationFirstEditKernel:
         )
         return KernelOutput(beat_sheet=beats, edit_decisions=edit_decisions, timeline=timeline)
 
-    def _build_final_tail_clip(self, timeline_end_ms: int) -> Optional[TimelineClip]:
+    def _extend_final_visual_tail(
+        self,
+        material_track: Sequence[TimelineClip],
+        avatar_track: Sequence[TimelineClip],
+        timeline_end_ms: int,
+    ) -> int:
         if self.final_tail_buffer_ms <= 0 or timeline_end_ms <= 0:
-            return None
-        return TimelineClip(
-            clip_id="final-tail-buffer",
-            track="material_track",
-            source_path="generated://black",
-            start_ms=timeline_end_ms,
-            end_ms=timeline_end_ms + self.final_tail_buffer_ms,
-            media_start_ms=0,
-            media_end_ms=self.final_tail_buffer_ms,
-            role="end_buffer",
-            segment_id="final-tail",
-            text="",
-            metadata={
-                "kind": "black_tail",
-                "reason": "silent black tail buffer after final narration",
-            },
-        )
+            self._mark_final_visual_fade(material_track, avatar_track, timeline_end_ms)
+            return timeline_end_ms
+        candidates = [
+            clip
+            for clip in list(material_track) + list(avatar_track)
+            if clip.source_path
+            and clip.source_path != "generated://black"
+            and clip.end_ms == timeline_end_ms
+            and clip.end_ms > clip.start_ms
+        ]
+        if not candidates:
+            self._mark_final_visual_fade(material_track, avatar_track, timeline_end_ms)
+            return timeline_end_ms
+
+        final_clip = candidates[-1]
+        visual_end_ms = timeline_end_ms + self.final_tail_buffer_ms
+        final_clip.end_ms = visual_end_ms
+        final_clip.metadata = dict(final_clip.metadata or {})
+        final_clip.metadata["final_tail_strategy"] = "hold_last_visual"
+        final_clip.metadata["final_tail_buffer_ms"] = self.final_tail_buffer_ms
+        final_clip.metadata["allow_source_stretch"] = True
+        final_clip.metadata["suppress_default_fade_out"] = True
+        final_clip.metadata["tail_reason"] = "hold final visual after narration instead of adding black frames"
+        self._mark_final_visual_fade(material_track, avatar_track, visual_end_ms)
+        return visual_end_ms
 
     def _mark_final_visual_fade(
         self,
@@ -286,7 +308,7 @@ class NarrationFirstEditKernel:
             return
         final_clip.metadata = dict(final_clip.metadata or {})
         final_clip.metadata["fade_out_ms"] = fade_ms
-        final_clip.metadata["fade_reason"] = "fade final visual into generated black tail"
+        final_clip.metadata["fade_reason"] = "fade final visual at natural ending"
 
     @staticmethod
     def _split_sentences(script_text: str) -> List[str]:
@@ -306,6 +328,98 @@ class NarrationFirstEditKernel:
         )
         estimated_total = max(estimated_total, len(sentences) * self.min_segment_ms)
         return self._allocate_by_weight(sentences, estimated_total)
+
+    def _fit_durations_to_visual_materials(
+        self,
+        *,
+        sentences: Sequence[str],
+        durations: Sequence[int],
+        bundle: ProductionBundle,
+        avatar_indexes: set[int],
+        narrative_keywords: Sequence[str],
+    ) -> List[int]:
+        if self.material_duration_policy == "ignore" or not bundle.materials:
+            return list(durations)
+
+        material_reuse: Dict[str, int] = defaultdict(int)
+        material_cursor = 0
+        caps: List[Optional[int]] = []
+        for index, text in enumerate(sentences, start=1):
+            if index in avatar_indexes:
+                caps.append(None)
+                continue
+            keywords = self._extract_keywords(text, narrative_keywords)
+            material, material_cursor, _reuse_index = self._pick_material(
+                bundle,
+                text,
+                keywords,
+                material_reuse,
+                material_cursor,
+            )
+            caps.append(self._material_duration_cap(material))
+
+        known_caps = [cap for cap in caps if cap is not None]
+        if not known_caps:
+            return list(durations)
+
+        fitted = self._fit_durations_to_caps(durations, caps)
+        if fitted == list(durations):
+            return fitted
+
+        fixed_audio = bool(bundle.tts_clips) or bool(bundle.full_tts_audio_path)
+        if fixed_audio or self.material_duration_policy == "error":
+            raise KernelConfigError(
+                "visual materials cannot support the narration duration; "
+                f"requested_ms={sum(durations)}, material_supported_ms={sum(fitted)}, "
+                "shorten/regenerate narration or provide more usable material"
+            )
+        if self.material_duration_policy != "cap":
+            raise KernelConfigError(
+                "editing.material_duration_policy must be one of: cap, error, ignore"
+            )
+        return fitted
+
+    @staticmethod
+    def _material_duration_cap(material: MaterialAsset) -> Optional[int]:
+        if str(material.media_type).strip().lower() in {"image", "photo", "still"}:
+            return None
+        if material.duration_ms is None:
+            return None
+        return max(int(material.duration_ms), 1)
+
+    @classmethod
+    def _fit_durations_to_caps(cls, durations: Sequence[int], caps: Sequence[Optional[int]]) -> List[int]:
+        fitted = [max(int(duration), 1) for duration in durations]
+        if len(fitted) != len(caps):
+            return fitted
+
+        overflow = 0
+        for index, cap in enumerate(caps):
+            if cap is None:
+                continue
+            safe_cap = max(int(cap), 1)
+            if fitted[index] > safe_cap:
+                overflow += fitted[index] - safe_cap
+                fitted[index] = safe_cap
+
+        if overflow <= 0:
+            return fitted
+
+        for index, cap in enumerate(caps):
+            if overflow <= 0:
+                break
+            if cap is None:
+                fitted[index] += overflow
+                overflow = 0
+                break
+            spare = max(int(cap) - fitted[index], 0)
+            if spare <= 0:
+                continue
+            added = min(spare, overflow)
+            fitted[index] += added
+            overflow -= added
+
+        return [max(int(duration), 1) for duration in fitted]
 
     def _build_subtitle_cues(self, *, beat_index: int, text: str, start_ms: int, end_ms: int) -> List[SubtitleCue]:
         if self.subtitle_mode != "phrase_proportional":
@@ -566,9 +680,39 @@ class NarrationFirstEditKernel:
             if best_score is None or score_tuple > best_score:
                 best_score = score_tuple
                 best_material = material
+        reuse_index = material_reuse[best_material.asset_id]
         material_reuse[best_material.asset_id] += 1
         next_cursor = (bundle.materials.index(best_material) + 1) % max(len(bundle.materials), 1)
-        return best_material, next_cursor
+        return best_material, next_cursor, reuse_index
+
+    def _material_media_window(
+        self,
+        *,
+        material: MaterialAsset,
+        duration_ms: int,
+        reuse_index: int,
+    ) -> Tuple[int, Optional[int], Dict[str, Any]]:
+        cap = self._material_duration_cap(material)
+        metadata: Dict[str, Any] = {"reuse_index": max(int(reuse_index), 0)}
+        if cap is None:
+            return 0, material.duration_ms, metadata
+
+        requested_ms = max(int(duration_ms), 1)
+        if requested_ms >= cap:
+            if requested_ms > cap:
+                metadata["visual_shortfall_ms"] = requested_ms - cap
+            return 0, cap, metadata
+
+        max_start_ms = max(cap - requested_ms, 0)
+        if max_start_ms <= 0:
+            return 0, requested_ms, metadata
+        if self.max_material_reuse <= 1:
+            start_ms = 0
+        else:
+            slot = max(int(reuse_index), 0) % self.max_material_reuse
+            start_ms = int(round(max_start_ms * slot / max(self.max_material_reuse - 1, 1)))
+        metadata["media_window_reason"] = "reuse_offset"
+        return start_ms, min(start_ms + requested_ms, cap), metadata
 
     @staticmethod
     def _score_material(tags: Sequence[str], text: str, keywords: Sequence[str]) -> int:

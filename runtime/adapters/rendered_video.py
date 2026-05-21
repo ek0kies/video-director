@@ -316,6 +316,7 @@ class RenderedVideoAdapter(OutputAdapter):
             pixel_format=pixel_format,
             duration_seconds=duration_seconds,
             fade_out_ms=self._clip_fade_out_ms(clip),
+            allow_default_fade_out=not self._suppress_default_fade_out(clip),
         )
         codec = str(self.effective_config.get("video_codec", "libx264"))
         preset = str(self.effective_config.get("preset", "medium"))
@@ -374,6 +375,7 @@ class RenderedVideoAdapter(OutputAdapter):
         pixel_format: str,
         duration_seconds: str,
         fade_out_ms: int,
+        allow_default_fade_out: bool,
     ) -> str:
         background_color = str(self.effective_config.get("background_color", "black")).strip() or "black"
         background_mode = str(self.effective_config.get("background_mode", "blurred_fill")).strip().lower()
@@ -405,10 +407,14 @@ class RenderedVideoAdapter(OutputAdapter):
         transition_mode = self._transition_mode()
         if transition_mode == "fade":
             fade_in_duration = self._transition_duration_seconds(duration_seconds)
-            fade_out_duration = self._transition_duration_seconds(
-                duration_seconds,
-                configured_duration_ms=fade_out_ms if fade_out_ms > 0 else None,
-            )
+            fade_out_duration = 0.0
+            if fade_out_ms > 0:
+                fade_out_duration = self._transition_duration_seconds(
+                    duration_seconds,
+                    configured_duration_ms=fade_out_ms,
+                )
+            elif allow_default_fade_out:
+                fade_out_duration = self._transition_duration_seconds(duration_seconds)
             if fade_in_duration > 0:
                 filters.append(f"fade=t=in:st=0:d={fade_in_duration:.3f}")
             if fade_out_duration > 0:
@@ -455,6 +461,11 @@ class RenderedVideoAdapter(OutputAdapter):
     def _clip_fade_out_ms(clip: TimelineClip) -> int:
         metadata = clip.metadata if isinstance(clip.metadata, dict) else {}
         return max(int(metadata.get("fade_out_ms", 0) or 0), 0)
+
+    @staticmethod
+    def _suppress_default_fade_out(clip: TimelineClip) -> bool:
+        metadata = clip.metadata if isinstance(clip.metadata, dict) else {}
+        return bool(metadata.get("suppress_default_fade_out", False))
 
     def _render_audio_track(
         self,

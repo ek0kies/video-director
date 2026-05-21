@@ -1,31 +1,32 @@
-# Final Tail Migration Plan
+# Final Visual Tail Plan
 
 ## Context
 
-Video Director previously handled abrupt endings in the AiVideoClip
-`skills/video-director` runtime by adding a canonical timeline clip named
-`final-tail-buffer` with `source_path="generated://black"`. The standalone
-Video Director repository did not carry that timeline-level behavior, so final
-mp4 renders could end abruptly when audio and video ended at the same boundary.
+Video Director previously handled abrupt endings by adding a canonical timeline
+clip named `final-tail-buffer` with `source_path="generated://black"`. That
+prevents hard stops, but it is the wrong default: the better ending keeps the
+last valid visual on screen briefly while narration and subtitles finish
+naturally.
 
 ## Decision
 
-Migrate the AiVideoClip behavior at the canonical timeline layer instead of
-keeping the tail as a render-adapter-only concern.
+Keep final-tail handling at the canonical timeline layer, but represent it as a
+hold on the last real visual clip instead of appending black frames. Generated
+black remains an adapter capability for explicit timelines only; it is not the
+default ending strategy.
 
 | Phase | Files | Expected result | Verification |
 | --- | --- | --- | --- |
-| Kernel | `runtime/kernel.py` | Add optional final black tail clip and mark the last real visual with fade metadata. | Inspect `Timeline_Model.json` for `final-tail-buffer`. |
-| Config | `runtime/config_prepare.py`, `runtime/templates/video.template.json` | Enable two-frame final tail by default for `--output-mode video`. | Generate local video config and inspect `editing.final_tail_frames`. |
-| Render | `runtime/adapters/rendered_video.py` | Render `generated://black`, honor final `fade_out_ms`, and pad full-track audio to timeline duration. | Run public demo and audio smoke render. |
-| Draft | `runtime/adapters/jianying.py` | Materialize `generated://black` and pass `fade_out_ms` into pyJianYingDraft video keyframes. | Run draft bundle smoke with final tail enabled. |
+| Kernel | `runtime/kernel.py` | Extend the final real visual clip by `final_tail_frames` or `final_tail_buffer_ms`; mark it with `final_tail_strategy=hold_last_visual` and suppress the default final fade-out. | Inspect `Timeline_Model.json`; there should be no generated black tail clip. |
+| Config | `runtime/config_prepare.py`, `runtime/templates/video.template.json` | Keep the existing small default tail duration for `--output-mode video`, but its meaning is visual hold, not black tail; default fade-to-black is disabled. | Generate local video config and inspect `editing.final_tail_frames` and `editing.final_fade_out_ms`. |
+| Render | `runtime/adapters/rendered_video.py` | Render the extended final visual, let subtitles/audio end before the visual tail, and skip the default fade-to-black on that final hold. | Run public demo and verify the final clip does not contain a black tail. |
+| Draft | `runtime/adapters/jianying.py` | Only stretch source media when the timeline explicitly marks `allow_source_stretch`; ordinary beat gaps are not hidden in the exporter. | Run adapter unit smoke for both default truncation and explicit tail hold. |
 
 ## Scope
 
-This migration enables the final tail by default only for direct mp4 output.
-The Jianying draft adapter can now consume the same timeline if a draft config
-explicitly enables `final_tail_frames` or receives a timeline containing
-`generated://black`.
+This plan only fixes ending behavior. It does not implement material-first copy
+planning, global material sufficiency checks, or automatic narration rewriting.
+Those belong in a separate planning pass before timeline generation.
 
 ## Verification Checklist
 
@@ -37,5 +38,7 @@ explicitly enables `final_tail_frames` or receives a timeline containing
 - `bash scripts/video-director.sh run demo/contest/video-director.contest-demo.local.json --dry-run`
 - `bash scripts/video-director.sh run demo/contest/video-director.contest-demo.local.json`
 - Audio smoke with a full-track WAV and final mp4 duration check
-- Draft bundle smoke with `outputs.jianying.use_pyjianyingdraft=false`
-- Tail frame extraction with pixel check for black output
+- Draft adapter smoke with `allow_source_stretch=false`
+- Draft adapter smoke with `allow_source_stretch=true`
+- Timeline inspection: no `final-tail-buffer` clip and no default
+  `generated://black` source

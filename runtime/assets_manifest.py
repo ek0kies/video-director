@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import json
+import subprocess
 from pathlib import Path
-from typing import Any, Dict, Iterable, List
+from typing import Any, Dict, Iterable, List, Optional
 
 
 class AssetAnalysisError(ValueError):
@@ -23,6 +24,34 @@ def _tokens_from_path(path: Path) -> List[str]:
 def _media_files(root: Path) -> Iterable[Path]:
     exts = VIDEO_EXTS | IMAGE_EXTS
     return sorted(path for path in root.rglob("*") if path.is_file() and path.suffix.lower() in exts)
+
+
+def _probe_video_duration_ms(path: Path) -> Optional[int]:
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                str(path),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    raw = (result.stdout or "").strip()
+    if not raw:
+        return None
+    try:
+        return max(int(round(float(raw) * 1000)), 1)
+    except ValueError:
+        return None
 
 
 def build_assets_manifest(*, materials_dir: Path, cwd: Path, output_path: Path, limit: int = 0) -> Dict[str, Any]:
@@ -47,23 +76,26 @@ def build_assets_manifest(*, materials_dir: Path, cwd: Path, output_path: Path, 
     for index, path in enumerate(files, start=1):
         media_type = "video" if path.suffix.lower() in VIDEO_EXTS else "image"
         relative = path.relative_to(root)
-        assets.append(
-            {
-                "asset_id": f"asset-{index:03d}",
-                "path": str(path.resolve()),
-                "media_type": media_type,
-                "tags": _tokens_from_path(relative),
-                "description": "",
-                "scene_type": "",
-                "mood": "",
-                "best_for": [],
-                "metadata": {
-                    "source_root": str(root),
-                    "relative_path": str(relative),
-                    "generated_by": "filename_heuristic",
-                },
-            }
-        )
+        item = {
+            "asset_id": f"asset-{index:03d}",
+            "path": str(path.resolve()),
+            "media_type": media_type,
+            "tags": _tokens_from_path(relative),
+            "description": "",
+            "scene_type": "",
+            "mood": "",
+            "best_for": [],
+            "metadata": {
+                "source_root": str(root),
+                "relative_path": str(relative),
+                "generated_by": "filename_heuristic",
+            },
+        }
+        if media_type == "video":
+            duration_ms = _probe_video_duration_ms(path)
+            if duration_ms is not None:
+                item["duration_ms"] = duration_ms
+        assets.append(item)
 
     payload: Dict[str, Any] = {"version": "1.0", "assets": assets}
     output = output_path.expanduser()

@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Tuple
 from .adapters import JianyingDraftAdapter, PlannedOutputAdapter, RenderedVideoAdapter
 from .cloud_production import CloudProductionGenerator
 from .kernel import NarrationFirstEditKernel
+from .material_planning import build_material_copy_plan
 from .models import AdapterResult, KernelOutput, ProductionBundle, to_dict
 from .production import ProductionBundleBuilder
 
@@ -69,6 +70,8 @@ class VideoDirectorWorkflow:
         builder = ProductionBundleBuilder(self.cwd)
         bundle = builder.build(self.config)
         job_root, output_root, run_id = self._resolve_output_layout(bundle)
+        copy_plan_path = output_root / "Material_Copy_Plan.json"
+        _write_json(copy_plan_path, build_material_copy_plan(self.config, cwd=self.cwd))
         kernel = self._build_kernel(pre_production=True)
         kernel_output = kernel.build(bundle)
         self._validate_visual_timeline(kernel_output)
@@ -115,6 +118,7 @@ class VideoDirectorWorkflow:
                 "timeline_path": str(output_root / "Timeline_Model.json"),
                 "beat_sheet_path": str(output_root / "BeatSheet.json"),
                 "edl_path": str(output_root / "Edit_Decision_List.json"),
+                "copy_plan_path": str(copy_plan_path),
                 "remote_manifest_path": remote_manifest_path,
                 "targets": [to_dict(adapter_result) for adapter_result in adapter_results],
             }

@@ -54,9 +54,10 @@
     "avatar_ending_segments": 0,
     "avatar_min_segments_for_middle": 5,
     "max_material_reuse": 2,
+    "material_duration_policy": "cap",
     "final_tail_frames": 2,
     "final_tail_buffer_ms": 0,
-    "final_fade_out_ms": 450
+    "final_fade_out_ms": 0
   },
   "outputs": {
     "output_root": "output/video_director",

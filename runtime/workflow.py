@@ -7,13 +7,13 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, Iterable, List, Tuple
 
 from .adapters import JianyingDraftAdapter, PlannedOutputAdapter, RenderedVideoAdapter
 from .cloud_production import CloudProductionGenerator
 from .kernel import NarrationFirstEditKernel
 from .material_planning import build_material_copy_plan
-from .models import AdapterResult, KernelOutput, ProductionBundle, to_dict
+from .models import AdapterResult, KernelOutput, ProductionBundle, TimelineClip, to_dict
 from .operation_confirmation import ensure_operation_confirmed
 from .production import ProductionBundleBuilder
 
@@ -77,6 +77,7 @@ class VideoDirectorWorkflow:
         kernel = self._build_kernel(pre_production=True)
         kernel_output = kernel.build(bundle)
         self._validate_visual_timeline(kernel_output)
+        self._validate_timeline_handoff(kernel_output)
         remote_manifest_path = ""
 
         if self._use_remote_production():
@@ -92,6 +93,7 @@ class VideoDirectorWorkflow:
             bundle = generator.produce(bundle, kernel_output.beat_sheet)
             kernel_output = self._build_kernel(pre_production=False).build(bundle)
             self._validate_visual_timeline(kernel_output)
+            self._validate_timeline_handoff(kernel_output)
 
         _write_json(output_root / "config.snapshot.json", _sanitize_config_snapshot(self.config))
         _write_json(output_root / "Production_Bundle.json", to_dict(bundle))
@@ -174,6 +176,82 @@ class VideoDirectorWorkflow:
         if lowered.startswith(("http://", "https://")):
             return True
         return Path(source).suffix.lower() in {".mp4", ".mov", ".m4v", ".avi", ".mkv", ".webm", ".jpg", ".jpeg", ".png", ".webp", ".heic", ".bmp"}
+
+    @staticmethod
+    def _validate_timeline_handoff(kernel_output: KernelOutput) -> None:
+        timeline = kernel_output.timeline
+        duration_ms = max(int(timeline.duration_ms), 1)
+        tracks = timeline.tracks
+        visual_clips = list(tracks.get("material_track", [])) + list(tracks.get("avatar_track", []))
+
+        for clip in VideoDirectorWorkflow._all_timeline_clips(tracks):
+            clip_duration_ms = clip.end_ms - clip.start_ms
+            if clip.start_ms < 0 or clip_duration_ms <= 0:
+                raise WorkflowError(
+                    f"timeline handoff failed: {clip.track}:{clip.clip_id} has invalid time range "
+                    f"{clip.start_ms}-{clip.end_ms}ms"
+                )
+            if clip.end_ms > duration_ms:
+                raise WorkflowError(
+                    f"timeline handoff failed: {clip.track}:{clip.clip_id} ends at {clip.end_ms}ms "
+                    f"after timeline duration {duration_ms}ms"
+                )
+            VideoDirectorWorkflow._validate_clip_media_window(clip)
+
+        for cue in timeline.subtitles:
+            if cue.start_ms < 0 or cue.end_ms <= cue.start_ms:
+                raise WorkflowError(
+                    f"timeline handoff failed: subtitle {cue.cue_id} has invalid time range "
+                    f"{cue.start_ms}-{cue.end_ms}ms"
+                )
+            if cue.end_ms > duration_ms:
+                raise WorkflowError(
+                    f"timeline handoff failed: subtitle {cue.cue_id} ends at {cue.end_ms}ms "
+                    f"after timeline duration {duration_ms}ms"
+                )
+            if not VideoDirectorWorkflow._has_visual_coverage(visual_clips, cue.start_ms, cue.end_ms):
+                raise WorkflowError(
+                    f"timeline handoff failed: subtitle {cue.cue_id} has no visual coverage for "
+                    f"{cue.start_ms}-{cue.end_ms}ms"
+                )
+
+    @staticmethod
+    def _all_timeline_clips(tracks: Dict[str, List[TimelineClip]]) -> Iterable[TimelineClip]:
+        for clips in tracks.values():
+            for clip in clips:
+                yield clip
+
+    @staticmethod
+    def _validate_clip_media_window(clip: TimelineClip) -> None:
+        if clip.media_end_ms is None:
+            return
+        source = str(clip.source_path or "").strip()
+        if clip.track in {"material_track", "avatar_track"} and VideoDirectorWorkflow._is_still_image_source(source):
+            return
+
+        target_duration_ms = max(int(clip.end_ms - clip.start_ms), 1)
+        media_duration_ms = int(clip.media_end_ms) - int(clip.media_start_ms)
+        if media_duration_ms >= target_duration_ms:
+            return
+
+        raise WorkflowError(
+            f"timeline handoff failed: {clip.track}:{clip.clip_id} target duration "
+            f"{target_duration_ms}ms exceeds source window {max(media_duration_ms, 0)}ms; "
+            "refusing to stretch, loop, or pad media"
+        )
+
+    @staticmethod
+    def _has_visual_coverage(visual_clips: List[TimelineClip], start_ms: int, end_ms: int) -> bool:
+        return any(
+            clip.start_ms <= start_ms
+            and clip.end_ms >= end_ms
+            and VideoDirectorWorkflow._is_real_visual_source(str(clip.source_path or "").strip())
+            for clip in visual_clips
+        )
+
+    @staticmethod
+    def _is_still_image_source(source: str) -> bool:
+        return Path(source).suffix.lower() in {".jpg", ".jpeg", ".png", ".webp", ".heic", ".bmp"}
 
     def _resolve_output_layout(self, bundle: ProductionBundle) -> Tuple[Path, Path, str]:
         outputs = self.config.get("outputs", {})

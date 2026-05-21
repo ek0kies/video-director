@@ -142,7 +142,14 @@ class NarrationFirstEditKernel:
                 segment_type = "B_ROLL"
 
             if segment_type == "B_ROLL":
-                material, material_cursor, reuse_index = self._pick_material(bundle, text, keywords, material_reuse, material_cursor)
+                material, material_cursor, reuse_index = self._pick_material(
+                    bundle,
+                    text,
+                    keywords,
+                    material_reuse,
+                    material_cursor,
+                    requested_duration_ms=end_ms - start_ms,
+                )
                 media_start_ms, media_end_ms, media_metadata = self._material_media_window(
                     material=material,
                     duration_ms=end_ms - start_ms,
@@ -355,6 +362,7 @@ class NarrationFirstEditKernel:
                 keywords,
                 material_reuse,
                 material_cursor,
+                requested_duration_ms=durations[index - 1],
             )
             caps.append(self._material_duration_cap(material))
 
@@ -668,10 +676,23 @@ class NarrationFirstEditKernel:
         keywords: Sequence[str],
         material_reuse: Dict[str, int],
         cursor: int,
+        requested_duration_ms: Optional[int] = None,
     ):
         best_score: Optional[Tuple[int, int, int]] = None
         best_material = bundle.materials[0]
+        requested = max(int(requested_duration_ms or 0), 0)
+        capable_candidates: List[Tuple[MaterialAsset, int]] = []
+        fallback_candidates: List[Tuple[MaterialAsset, int]] = []
         for index, material in enumerate(bundle.materials):
+            cap = self._material_duration_cap(material)
+            candidate = (material, index)
+            if requested <= 0 or cap is None or cap >= requested:
+                capable_candidates.append(candidate)
+            else:
+                fallback_candidates.append(candidate)
+
+        candidates = capable_candidates or fallback_candidates
+        for material, index in candidates:
             score = self._score_material(material.tags, text, keywords)
             reuse_penalty = material_reuse[material.asset_id]
             score_tuple = (score - reuse_penalty * 2, -reuse_penalty, -abs(index - cursor))

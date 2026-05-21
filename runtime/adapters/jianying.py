@@ -16,6 +16,9 @@ from ..models import AdapterResult, KernelOutput, ProductionBundle, TimelineClip
 from .base import OutputAdapter
 
 
+TRAILING_SUBTITLE_PUNCTUATION = "，,。.!！?？;；:：、"
+
+
 class JianyingDraftAdapter(OutputAdapter):
     """Export the canonical timeline into a Jianying-oriented bundle or draft."""
 
@@ -63,6 +66,14 @@ class JianyingDraftAdapter(OutputAdapter):
                 status="bundle_only",
                 artifact_path=str(bundle_path),
                 note="pyJianYingDraft disabled",
+            )
+
+        if dry_run:
+            return AdapterResult(
+                target=self.target_name,
+                status="dry_run",
+                artifact_path=str(bundle_path),
+                note="Jianying draft plan only",
             )
 
         drafts_root = Path(str(self.config.get("drafts_root", output_dir / "drafts"))).expanduser()
@@ -460,7 +471,7 @@ class JianyingDraftAdapter(OutputAdapter):
         cue: Dict[str, Any],
         track_name: str,
     ) -> None:
-        text = str(cue.get("text", "")).strip()
+        text = self._clean_subtitle_text(cue.get("text", ""))
         if not text:
             return
         start_us = self._ms_to_us(int(cue.get("start_ms", 0)))
@@ -515,6 +526,14 @@ class JianyingDraftAdapter(OutputAdapter):
         )
         script.add_segment(segment, track_name=track_name)
 
+    def _clean_subtitle_text(self, text: Any) -> str:
+        normalized = " ".join(str(text or "").split()).strip()
+        subtitles_cfg = self.config.get("subtitles", {}) if isinstance(self.config.get("subtitles"), dict) else {}
+        strip_trailing = bool(subtitles_cfg.get("subtitle_strip_trailing_punctuation", True))
+        if strip_trailing:
+            normalized = normalized.rstrip(TRAILING_SUBTITLE_PUNCTUATION).strip()
+        return normalized
+
     @staticmethod
     def _require_local_file(raw: str, label: str) -> str:
         if not raw:
@@ -566,11 +585,12 @@ class JianyingDraftAdapter(OutputAdapter):
         preferred_source_us = int(source_us) if source_us is not None else int(seg_us)
         available_us = max(material_duration_us - safe_source_start_us, 1)
         source_us_final = min(max(preferred_source_us, 1), available_us)
-        # Jianying drafts must preserve the canonical visual timeline. When a
-        # source window is shorter than the beat, pyJianYingDraft derives the
-        # speed from source_timerange/target_timerange instead of leaving a
-        # visual gap behind the narration and subtitles.
-        target_us = max(int(seg_us), 1)
+        if source_us_final < seg_us:
+            raise RuntimeError(
+                "video source window is shorter than the target timeline segment; "
+                "timeline preflight should reject this before Jianying export"
+            )
+        target_us = min(seg_us, source_us_final)
         if target_us <= 0:
             return
         segment = pyjy.VideoSegment(

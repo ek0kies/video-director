@@ -11,10 +11,11 @@
 | 文件 | 改动点 | 验证方式 |
 | --- | --- | --- |
 | `runtime/config_prepare.py` | 增加文案来源和审核状态配置入口 | launcher 生成配置并检查字段 |
+| `runtime/copy_review.py` | 生成待审文案报告，列出字幕分段和可疑项 | `review-copy` 输出报告 |
 | `runtime/production.py` | 运行前拦截未审核的自动生成文案 | launcher run 预期失败 |
 | `runtime/models.py` | 在生产 bundle 中保留文案元数据 | dry-run 输出可追溯 |
 | `runtime/adapters/rendered_video.py` | 修复字幕框内文字居中计算 | render/smoke 检查 |
-| `scripts/video_director.py` | 将文案审核失败输出为干净的用户级错误 | launcher run 预期失败 |
+| `scripts/video_director.py` | 将文案审核失败输出为干净的用户级错误，并暴露 `review-copy` 命令 | launcher run 预期失败 |
 | `SKILL.md` | 更新使用契约，说明自动生成文案必须审核 | 文档检查 |
 
 ## 非目标
@@ -36,5 +37,6 @@
 - `user_provided` 默认直接通过。
 - `generated` 且审核未通过时中止运行。
 - `--materials-dir` 应覆盖模板示例素材，让用户给定素材目录进入扫描路径。
+- `review-copy` 在渲染前输出 `copy_review.pending.json`，供用户确认自动生成文案。
 
 这样不会影响用户手写文案的现有路径，同时给 Agent 自动生成文案提供硬边界。

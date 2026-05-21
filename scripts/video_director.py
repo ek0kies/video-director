@@ -29,6 +29,7 @@ if str(_skill_root()) not in sys.path:
 
 from runtime.assets_manifest import AssetAnalysisError, build_assets_manifest  # noqa: E402
 from runtime.config_prepare import prepare_config  # noqa: E402
+from runtime.copy_review import build_copy_review_report, write_copy_review_report  # noqa: E402
 from runtime.doctor import run_doctor  # noqa: E402
 from runtime.production import ProductionConfigError  # noqa: E402
 from runtime.summarize import summarize_run  # noqa: E402
@@ -199,6 +200,36 @@ def _cmd_run(args: Sequence[str]) -> int:
     return 0
 
 
+def _cmd_review_copy(args: Sequence[str]) -> int:
+    parser = argparse.ArgumentParser(description="Build a viewer-facing copy review report")
+    parser.add_argument("config", help="path to the Video Director config")
+    parser.add_argument("--output", help="optional report JSON output path")
+    parsed = parser.parse_args(args)
+
+    workspace_root = _workspace_root()
+    config_path = _resolve_config_path(parsed.config, workspace_root=workspace_root)
+    if not config_path.is_file():
+        raise SystemExit(f"error: config not found: {config_path}")
+    output_path = Path(parsed.output).expanduser() if parsed.output else None
+    if output_path is not None and not output_path.is_absolute():
+        output_path = (workspace_root / output_path).resolve()
+    report = build_copy_review_report(_read_json(config_path))
+    write_copy_review_report(report, output_path)
+    if output_path is not None:
+        print(
+            json.dumps(
+                {
+                    "status": report["status"],
+                    "output": str(output_path),
+                    "flag_count": len(report.get("flags", [])),
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+    return 0
+
+
 def _cmd_summarize(args: Sequence[str]) -> int:
     if not args:
         raise SystemExit("usage: video_director.py summarize <latest_run.json|run-dir>")
@@ -316,6 +347,7 @@ def _usage() -> str:
 commands:
   analyze    Build an assets manifest from media files
   config     Generate a local config
+  review-copy  Build a viewer-facing copy review report
   doctor     Check runtime prerequisites
   run        Dry-run or render the pipeline
   summarize  Summarize a run
@@ -334,6 +366,8 @@ def main(argv: Sequence[str]) -> int:
         return _cmd_analyze(args)
     if command == "config":
         return _cmd_config(args)
+    if command == "review-copy":
+        return _cmd_review_copy(args)
     if command == "doctor":
         return _cmd_doctor(args)
     if command == "run":

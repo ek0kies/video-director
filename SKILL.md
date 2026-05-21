@@ -84,6 +84,23 @@ bash scripts/video-director.sh config local \
   --set outputs.final_render.output_name='"demo-video.mp4"'
 ```
 
+When the user explicitly provides final viewer-facing narration, use
+`--narration-text`. When the Agent generates viewer-facing narration, do not use
+`--narration-text`; use `--generated-narration-text`, build a review report, and
+only add `--copy-reviewed` after approval:
+
+```bash
+bash scripts/video-director.sh config local \
+  --output-mode video \
+  --output /path/to/workspace/video-director.generated.local.json \
+  --job-id generated-video \
+  --generated-narration-text "Generated subtitles for human review." \
+  --set production.full_tts_duration_ms=30000
+bash scripts/video-director.sh review-copy \
+  /path/to/workspace/video-director.generated.local.json \
+  --output /path/to/workspace/copy_review.pending.json
+```
+
 Editable draft path, only when explicitly requested:
 
 ```bash
@@ -109,6 +126,7 @@ Important config semantics:
 - Generated viewer-facing copy must set `inputs.narration_source="generated"` and
   must be reviewed before rendering. Use `--generated-narration-text` for
   generated copy and add `--copy-reviewed` only after review approval.
+- `review-copy` creates a local review report and does not render media.
 - `--output-mode video` maps to `outputs.targets=["final_render"]`.
 - `--output-mode draft` maps to the current editable-draft adapter target.
 - Internal bundles or debug artifacts are not valid substitutes for `video`.

@@ -566,14 +566,11 @@ class JianyingDraftAdapter(OutputAdapter):
         preferred_source_us = int(source_us) if source_us is not None else int(seg_us)
         available_us = max(material_duration_us - safe_source_start_us, 1)
         source_us_final = min(max(preferred_source_us, 1), available_us)
-        # Only explicit timeline tail/hold decisions may stretch source media.
-        # Ordinary beats should expose planning gaps instead of hiding them in
-        # the exporter.
-        target_us = (
-            max(int(seg_us), 1)
-            if allow_source_stretch
-            else min(int(seg_us), source_us_final)
-        )
+        # Jianying drafts must preserve the canonical visual timeline. When a
+        # source window is shorter than the beat, pyJianYingDraft derives the
+        # speed from source_timerange/target_timerange instead of leaving a
+        # visual gap behind the narration and subtitles.
+        target_us = max(int(seg_us), 1)
         if target_us <= 0:
             return
         segment = pyjy.VideoSegment(

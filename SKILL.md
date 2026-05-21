@@ -257,6 +257,10 @@ Before generating config, apply this clarification gate:
 - Orientation is an execution parameter. If the user does not specify it,
   default short-video delivery to vertical 9:16 and include that choice in
   `operation_confirmation.summary`.
+- Landscape material in vertical `final_render` output defaults to
+  `background_mode="blurred_fill"`: center the original frame over an enlarged
+  blurred copy, not a black background. Treat solid black bars as an explicit
+  user/config choice, not the normal default.
 - Output mode is an execution parameter. Default to `video` / `final_render`;
   use editable `draft` only when the user explicitly asks for it.
 - Subtitles, voiceover, TTS, and BGM materially change the result. Do not add

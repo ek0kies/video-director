@@ -95,6 +95,23 @@ def _style_policy(inputs: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _background_policy(final_render: Dict[str, Any], *, output_mode: str) -> Dict[str, Any]:
+    mode = str(final_render.get("background_mode") or ("blurred_fill" if output_mode == "video" else "")).strip()
+    return {
+        "mode": mode,
+        "horizontal_in_portrait_policy": (
+            "blurred_fill"
+            if mode == "blurred_fill"
+            else "solid_or_configured_background"
+        ),
+        "note": (
+            "Landscape material in portrait output is centered over an enlarged blurred copy, not a black background."
+            if mode == "blurred_fill"
+            else "Landscape material uses the configured non-blur background policy."
+        ),
+    }
+
+
 def build_operation_summary(config: Dict[str, Any]) -> Dict[str, Any]:
     """Return the user-confirmable execution parameters for a config."""
 
@@ -120,6 +137,7 @@ def build_operation_summary(config: Dict[str, Any]) -> Dict[str, Any]:
             "resolution": str(editing.get("resolution") or "").strip(),
             "orientation": _orientation(width, height),
             "aspect_ratio": _aspect_ratio(width, height),
+            "background": _background_policy(final_render, output_mode=mode),
             "orientation_requires_confirmation": True,
         },
         "style": _style_policy(inputs),

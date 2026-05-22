@@ -57,6 +57,9 @@ verification result.
 - Keeps TTS optional and explicit for both final mp4 and editable draft outputs.
   The current Skill config surface only asks for TTS credentials when that path
   is selected.
+- When explicitly requested, Jianying editable draft export is an optional
+  adapter based on `pyJianYingDraft`; the default deliverable remains a directly
+  playable mp4.
 - For voiceover requests, supports user-provided audio, generated copy for
   manual recording, or explicitly selected Doubao TTS credentials.
 - Treats the final mp4 as the default user deliverable. Manifests, config
